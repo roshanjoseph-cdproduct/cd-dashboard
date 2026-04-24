@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>User Calling & Interview Dashboard — Live</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f0f4f9; --card: #ffffff; --primary: #1a56db; --primary-light: #e1effe;
+    --green: #057a55; --green-light: #def7ec; --amber: #c27803; --amber-light: #fdf6b2;
+    --red: #c81e1e; --red-light: #fde8e8; --purple: #6c2bd9; --purple-light: #edebfe;
+    --teal: #0694a2; --teal-light: #d5f5f6; --text: #111827; --text-muted: #6b7280;
+    --border: #e5e7eb; --shadow: 0 1px 3px rgba(0,0,0,.1); --shadow-md: 0 4px 6px -1px rgba(0,0,0,.1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* Loading */
+  #loadingOverlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,.85); z-index: 1000;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: white;
+  }
+  .spinner {
+    width: 48px; height: 48px; border: 4px solid rgba(255,255,255,.2);
+    border-top-color: white; border-radius: 50%; animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-size: 15px; font-weight: 600; }
+  .loading-sub  { font-size: 12px; opacity: .7; }
+  .loading-bars { display: flex; gap: 6px; margin-top: 8px; }
+  .loading-bar  { width: 8px; height: 8px; background: white; border-radius: 50%; animation: bounce .8s ease-in-out infinite; }
+  .loading-bar:nth-child(2) { animation-delay: .15s; }
+  .loading-bar:nth-child(3) { animation-delay: .3s; }
+  @keyframes bounce { 0%,80%,100% { transform: scale(.6); opacity:.4; } 40% { transform: scale(1); opacity:1; } }
+
+  /* Error */
+  #errorBox {
+    display: none; background: #fde8e8; border: 1px solid #f98080; border-radius: 10px;
+    padding: 20px 24px; margin: 24px 32px; color: var(--red);
+  }
+  #errorBox h3 { font-size: 15px; margin-bottom: 8px; }
+  #errorBox p  { font-size: 13px; line-height: 1.6; }
+  #errorBox a  { color: var(--primary); }
+
+  /* Header */
+  .header { background: linear-gradient(135deg, #1a56db 0%, #0e4fbd 100%); color: white; padding: 20px 32px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  .header-left h1 { font-size: 20px; font-weight: 700; letter-spacing: -.3px; }
+  .header-left p  { font-size: 12px; opacity: .8; margin-top: 3px; }
+  .header-meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .meta-chip { background: rgba(255,255,255,.15); padding: 4px 12px; border-radius: 20px; font-size: 11px; }
+  .btn-refresh {
+    background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.35); color: white;
+    padding: 7px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+    transition: background .15s; display: flex; align-items: center; gap: 6px;
+  }
+  .btn-refresh:hover { background: rgba(255,255,255,.3); }
+  .btn-refresh svg { width: 14px; height: 14px; }
+
+  /* Filter bar */
+  .filterbar {
+    background: white; border-bottom: 1px solid var(--border); padding: 10px 32px;
+    display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+  }
+  .filterbar label { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+  .filterbar select {
+    font-size: 12px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); background: white; cursor: pointer;
+  }
+
+  /* Page */
+  .page { padding: 20px 32px; max-width: 1400px; margin: 0 auto; }
+  .section-title {
+    font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;
+    letter-spacing: .8px; margin-bottom: 12px; margin-top: 26px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* KPI */
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+  .kpi-card {
+    background: var(--card); border-radius: 12px; padding: 16px 18px; box-shadow: var(--shadow);
+    border-left: 4px solid; transition: transform .15s;
+  }
+  .kpi-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+  .kpi-card.blue   { border-color: var(--primary); }
+  .kpi-card.green  { border-color: var(--green); }
+  .kpi-card.amber  { border-color: var(--amber); }
+  .kpi-card.red    { border-color: var(--red); }
+  .kpi-card.purple { border-color: var(--purple); }
+  .kpi-card.teal   { border-color: var(--teal); }
+  .kpi-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; }
+  .kpi-value { font-size: 30px; font-weight: 800; line-height: 1.1; margin-top: 5px; }
+  .kpi-card.blue   .kpi-value { color: var(--primary); }
+  .kpi-card.green  .kpi-value { color: var(--green); }
+  .kpi-card.amber  .kpi-value { color: var(--amber); }
+  .kpi-card.red    .kpi-value { color: var(--red); }
+  .kpi-card.purple .kpi-value { color: var(--purple); }
+  .kpi-card.teal   .kpi-value { color: var(--teal); }
+  .kpi-sub  { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+  .kpi-rate {
+    font-size: 11px; font-weight: 700; margin-top: 5px;
+    padding: 2px 7px; border-radius: 20px; display: inline-block;
+  }
+  .kpi-card.green  .kpi-rate { background: var(--green-light);  color: var(--green); }
+  .kpi-card.amber  .kpi-rate { background: var(--amber-light);  color: var(--amber); }
+  .kpi-card.purple .kpi-rate { background: var(--purple-light); color: var(--purple); }
+  .kpi-card.teal   .kpi-rate { background: var(--teal-light);   color: var(--teal); }
+
+  /* Charts */
+  .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .charts-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+  .chart-card { background: var(--card); border-radius: 12px; padding: 18px; box-shadow: var(--shadow); }
+  .chart-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+  .chart-sub   { font-size: 11px; color: var(--text-muted); margin-bottom: 14px; }
+
+  /* Funnel */
+  .funnel { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+  .funnel-row  { display: flex; align-items: center; gap: 10px; }
+  .funnel-bar-wrap { flex: 1; background: #f3f4f6; border-radius: 4px; height: 34px; overflow: hidden; }
+  .funnel-bar  { height: 100%; border-radius: 4px; display: flex; align-items: center; padding: 0 10px; font-size: 12px; font-weight: 700; color: white; white-space: nowrap; }
+  .funnel-label { font-size: 11px; font-weight: 600; color: var(--text-muted); width: 80px; text-align: right; flex-shrink: 0; }
+  .funnel-count { font-size: 13px; font-weight: 800; color: var(--text); width: 48px; flex-shrink: 0; }
+  .funnel-pct   { font-size: 11px; color: var(--text-muted); width: 90px; flex-shrink: 0; }
+
+  /* Table */
+  .table-card { background: var(--card); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead th {
+    background: #f9fafb; padding: 9px 12px; text-align: left; font-size: 11px;
+    font-weight: 700; color: var(--text-muted); text-transform: uppercase;
+    letter-spacing: .5px; border-bottom: 1px solid var(--border);
+  }
+  tbody td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: #f9fafb; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge-green  { background: var(--green-light);  color: var(--green); }
+  .badge-amber  { background: var(--amber-light);  color: var(--amber); }
+  .badge-purple { background: var(--purple-light); color: var(--purple); }
+  .badge-red    { background: var(--red-light);    color: var(--red); }
+  .badge-blue   { background: var(--primary-light); color: var(--primary); }
+  .progress-wrap { background: #f3f4f6; border-radius: 4px; height: 5px; width: 70px; display: inline-block; vertical-align: middle; overflow: hidden; margin-right: 5px; }
+  .progress-fill { height: 100%; border-radius: 4px; }
+
+  @media (max-width: 900px) {
+    .page { padding: 14px; }
+    .charts-grid, .charts-grid.three { grid-template-columns: 1fr; }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text">Fetching live data from Google Sheets…</div>
+  <div class="loading-sub">Pulling 8 cohort sheets in parallel</div>
+  <div class="loading-bars">
+    <div class="loading-bar"></div>
+    <div class="loading-bar"></div>
+    <div class="loading-bar"></div>
+  </div>
+</div>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <h1>🎯 User Calling &amp; Interview Dashboard</h1>
+    <p>Country Delight — Customer Research &amp; Outreach Tracker</p>
+  </div>
+  <div class="header-meta">
+    <span class="meta-chip" id="lastRefreshed">⏳ Loading…</span>
+    <span class="meta-chip" id="recordCount">—</span>
+    <button class="btn-refresh" onclick="loadAllData()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+      Refresh
+    </button>
+  </div>
+</div>
+
+<!-- Error box -->
+<div id="errorBox">
+  <h3>⚠️ Could not load data from Google Sheets</h3>
+  <p>
+    This usually means the sheet is not set to <strong>"Anyone with the link can view"</strong>.<br><br>
+    To fix: Open your Google Sheet → Click <strong>Share</strong> (top right) → Change from "Restricted" to
+    <strong>"Anyone with the link"</strong> → Set role to <strong>Viewer</strong> → Click Done → then
+    <a href="#" onclick="loadAllData();return false;">click Refresh</a>.<br><br>
+    <span style="font-size:11px;opacity:.7;">Error: <span id="errorDetail"></span></span>
+  </p>
+</div>
+
+<!-- Filter bar -->
+<div class="filterbar">
+  <label>Cohort:</label>
+  <select id="filterCohort" onchange="applyFilter()">
+    <option value="all">All Cohorts</option>
+    <option value="Early Users - No CS">Early Users – No CS</option>
+    <option value="Elite Users">Elite Users</option>
+    <option value="Dropped Off - Delhi NCR">Dropped Off – Delhi NCR</option>
+    <option value="Dropped Off - Hyd">Dropped Off – Hyd</option>
+    <option value="Inperson Leads">Inperson Leads</option>
+    <option value="Review Cart → Not Placing Order">Review Cart → Not Placing</option>
+    <option value="Placing Order → Not Taking OT">Placing Order → Not Taking OT</option>
+    <option value="OT Order ≥ 500">OT Order ≥ 500</option>
+  </select>
+  <label>Caller:</label>
+  <select id="filterCaller" onchange="applyFilter()">
+    <option value="all">All Callers</option>
+  </select>
+</div>
+
+<div class="page" id="mainPage" style="display:none;">
+
+  <div class="section-title">Overview</div>
+  <div class="kpi-grid" id="kpiGrid"></div>
+
+  <div class="section-title">Conversion Funnel</div>
+  <div class="chart-card">
+    <div class="chart-title">Lead → Connected → Interested → Interview → Insightful</div>
+    <div class="chart-sub">Drop-off at each stage of the outreach pipeline</div>
+    <div class="funnel" id="funnelViz"></div>
+  </div>
+
+  <div class="section-title">Caller Performance</div>
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-title">Volume by Caller</div>
+      <div class="chart-sub">Leads, connected &amp; interested per caller</div>
+      <canvas id="callerChart" height="220"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Conversion Rates by Caller</div>
+      <div class="chart-sub">Connection rate, interest rate &amp; interview rate</div>
+      <canvas id="callerRateChart" height="220"></canvas>
+    </div>
+  </div>
+  <div style="margin-top:14px;" class="table-card">
+    <table>
+      <thead><tr><th>Caller</th><th>Leads</th><th>Connected</th><th>Connect %</th><th>Interested</th><th>Interest %</th><th>Interviews</th><th>Insightful</th></tr></thead>
+      <tbody id="callerTableBody"></tbody>
+    </table>
+  </div>
+
+  <div class="section-title">Cohort Breakdown</div>
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-title">Leads by Cohort</div>
+      <div class="chart-sub">Total leads in each cohort pool</div>
+      <canvas id="cohortLeadsChart" height="260"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Conversion Rates by Cohort</div>
+      <div class="chart-sub">Connection &amp; interest rate comparison</div>
+      <canvas id="cohortRateChart" height="260"></canvas>
+    </div>
+  </div>
+  <div style="margin-top:14px;" class="table-card">
+    <table>
+      <thead><tr><th>Cohort</th><th>Leads</th><th>Connected</th><th>Connect %</th><th>Interested</th><th>Interest %</th><th>Interviews</th><th>Interview %</th></tr></thead>
+      <tbody id="cohortTableBody"></tbody>
+    </table>
+  </div>
+
+  <div class="section-title">Interview Performance</div>
+  <div class="charts-grid three">
+    <div class="chart-card">
+      <div class="chart-title">Interviews by Interviewer</div>
+      <div class="chart-sub">Total &amp; insightful per person</div>
+      <canvas id="interviewerChart" height="240"></canvas>
+    </div>
+    <div class="chart-card" style="display:flex;flex-direction:column;align-items:center;">
+      <div style="width:100%;">
+        <div class="chart-title">Mode of Interview</div>
+        <div class="chart-sub">Virtual vs. in-person split</div>
+      </div>
+      <canvas id="modeChart" height="200" width="200"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Insight Rate by Interviewer</div>
+      <div class="chart-sub">% of interviews marked insightful</div>
+      <canvas id="insightRateChart" height="240"></canvas>
+    </div>
+  </div>
+  <div style="margin-top:14px;" class="table-card">
+    <table>
+      <thead><tr><th>Interviewer</th><th>Interviews</th><th>Insightful</th><th>Insight Rate</th><th></th></tr></thead>
+      <tbody id="interviewerTableBody"></tbody>
+    </table>
+  </div>
+
+  <div class="section-title">Calling Timeline</div>
+  <div class="chart-card">
+    <div class="chart-title">Daily Calls — Stacked by Caller</div>
+    <div class="chart-sub">Activity over time across all active callers</div>
+    <canvas id="timelineChart" height="130"></canvas>
+  </div>
+
+  <div style="height:28px;"></div>
+</div>
+
+<script>
+// ─── CONFIG ─────────────────────────────────────────────────────────────────
+const SHEET_ID = '1RtHEVkSdMpBvtE7tFqE_lsJdIe_u-V9N3z3bflcZO6A';
+
+// Column indices are 0-based and match the exact Excel column layout verified
+// against the actual sheet structure.
+const SHEET_CONFIGS = [
+  {
+    sheetName: 'Early Users With No CS',
+    cohort: 'Early Users - No CS',
+    cityIdx: 9,        // J: Area
+    pocIdx: 12,        // M: POC Name
+    dateIdx: 14,       // O: Calling1 date
+    connIdx: 15,       // P: Connected 1
+    intIdx: 16,        // Q: Interested
+    modeIdx: 17,       // R: Mode of Interview
+    iviewIdx: 18,      // S: Interview Taken
+    insgIdx: 19,       // T: Insightful
+    takenIdx: 20,      // U: Interview Taken By
+    poc2Idx: null, date2Idx: null, conn2Idx: null, int2Idx: null,
+  },
+  {
+    sheetName: 'Elite Users',
+    cohort: 'Elite Users',
+    cityIdx: 17,       // R: city
+    pocIdx: 24,        // Y: POC Name
+    dateIdx: 23,       // X: Calling date
+    connIdx: 26,       // AA: Connected
+    intIdx: 27,        // AB: Interested
+    poc2Idx: 29,       // AD: POC Name (2nd)
+    date2Idx: 28,      // AC: Calling date 2
+    conn2Idx: 31,      // AF: Connected 2
+    int2Idx: 32,       // AG: Interested 2
+    iviewIdx: 33,      // AH: Joined
+    insgIdx: 34,       // AI: Insightful
+    takenIdx: 35,      // AJ: Interview Taken By
+    modeIdx: 38,       // AM: Mode of Interview
+  },
+  {
+    sheetName: 'Dropped Off Users - Delhi NCR',
+    cohort: 'Dropped Off - Delhi NCR',
+    cityIdx: 6,        // G: city
+    pocIdx: 16,        // Q: POC Name
+    dateIdx: 15,       // P: Calling date
+    connIdx: 18,       // S: Connected
+    intIdx: 19,        // T: Interested
+    poc2Idx: null, date2Idx: null, conn2Idx: null, int2Idx: null,
+    iviewIdx: null, insgIdx: null, takenIdx: null, modeIdx: null,
+  },
+  {
+    sheetName: 'Dropped Off Users - Hyd',
+    cohort: 'Dropped Off - Hyd',
+    cityIdx: 6,        // G: city
+    pocIdx: 16,        // Q: POC Name
+    dateIdx: 15,       // P: Calling date
+    connIdx: 18,       // S: Connected
+    intIdx: 19,        // T: Interested
+    poc2Idx: null, date2Idx: null, conn2Idx: null, int2Idx: null,
+    iviewIdx: null, insgIdx: null, takenIdx: null, modeIdx: null,
+  },
+  {
+    sheetName: 'Inperson leads',
+    cohort: 'Inperson Leads',
+    cityIdx: 17,       // R: city
+    pocIdx: 24,        // Y: POC Name
+    dateIdx: 23,       // X: Calling date
+    connIdx: 26,       // AA: Connected
+    intIdx: 27,        // AB: Interested
+    poc2Idx: null, date2Idx: null, conn2Idx: null, int2Idx: null,
+    iviewIdx: 28,      // AC: Joined
+    insgIdx: 29,       // AD: Insightful
+    takenIdx: 30,      // AE: Interview Taken By
+    modeIdx: 33,       // AH: Mode of Interview
+  },
+  {
+    sheetName: ' Review cart<> not placing orde',
+    cohort: 'Review Cart → Not Placing Order',
+    cityIdx: 17,       // R: city
+    pocIdx: 28,        // AC: POC Name
+    dateIdx: 30,       // AE: Calling Date
+    connIdx: 31,       // AF: Connected
+    poc2Idx: 32,       // AG: POC Name 2
+    date2Idx: 34,      // AI: Calling Date 2
+    conn2Idx: 35,      // AJ: Connected 2
+    int2Idx: 36,       // AK: Interested 2
+    intIdx: null,
+    iviewIdx: null, insgIdx: null, takenIdx: null, modeIdx: 38,
+  },
+  {
+    sheetName: ' Placing order <> Not taking OT',
+    cohort: 'Placing Order → Not Taking OT',
+    cityIdx: 17,       // R: city
+    pocIdx: 29,        // AD: POC Name
+    dateIdx: 30,       // AE: Calling Date
+    connIdx: 32,       // AG: Connected
+    poc2Idx: 33,       // AH: 2nd POC Name
+    date2Idx: 34,      // AI: 2nd Calling Date
+    conn2Idx: 36,      // AK: 2nd Connected
+    int2Idx: 37,       // AL: 2nd Interested
+    intIdx: null,
+    iviewIdx: null, insgIdx: null, takenIdx: null, modeIdx: 39,
+  },
+  {
+    sheetName: 'OT order >= 500',
+    cohort: 'OT Order ≥ 500',
+    cityIdx: 17,       // R: city
+    pocIdx: 29,        // AD: POC Name
+    dateIdx: 30,       // AE: Calling Date
+    connIdx: 32,       // AG: Connected
+    intIdx: 33,        // AH: Interested
+    poc2Idx: null, date2Idx: null, conn2Idx: null, int2Idx: null,
+    iviewIdx: null, insgIdx: null, takenIdx: null, modeIdx: 35,
+  },
+];
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let ALL_RECORDS = [];
+let FILTERED_RECORDS = [];
+let CHARTS = {};
+
+// ─── UTILITIES ───────────────────────────────────────────────────────────────
+function sheetUrl(name) {
+  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`;
+}
+
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = '', inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '"') {
+      if (inQ && text[i+1] === '"') { field += '"'; i++; }
+      else inQ = !inQ;
+    } else if (c === ',' && !inQ) {
+      row.push(field); field = '';
+    } else if ((c === '\n' || c === '\r') && !inQ) {
+      if (c === '\r' && text[i+1] === '\n') i++;
+      row.push(field); field = '';
+      if (row.some(x => x.trim())) rows.push(row);
+      row = [];
+    } else {
+      field += c;
+    }
+  }
+  if (field !== '' || row.length) { row.push(field); if (row.some(x=>x.trim())) rows.push(row); }
+  return rows;
+}
+
+function g(row, idx) {
+  if (idx === null || idx === undefined || idx >= row.length) return '';
+  return (row[idx] || '').trim();
+}
+
+function yesNo(v) {
+  if (!v) return null;
+  const s = v.trim().toLowerCase();
+  if (s === 'yes' || s === 'y') return 'Yes';
+  if (s === 'no'  || s === 'n') return 'No';
+  return null;
+}
+
+function parseDate(v) {
+  if (!v) return null;
+  // Handle various date formats from Google Sheets CSV
+  const s = v.trim();
+  if (!s || s === '' || s.startsWith('=')) return null;
+  try {
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  } catch(e) {}
+  // Try DD-MM-YYYY
+  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (m) {
+    const y = m[3].length === 2 ? '20' + m[3] : m[3];
+    return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  }
+  return null;
+}
+
+function pct(a, b) {
+  if (!b) return '—';
+  return ((a / b) * 100).toFixed(1) + '%';
+}
+
+function rateBadge(rateStr) {
+  const v = parseFloat(rateStr);
+  if (isNaN(v)) return `<span class="badge" style="background:#f3f4f6;color:#6b7280;">—</span>`;
+  const [bg, fg] = v >= 50 ? ['#def7ec','#057a55'] : v >= 25 ? ['#fdf6b2','#c27803'] : ['#fde8e8','#c81e1e'];
+  return `<span class="badge" style="background:${bg};color:${fg};">${rateStr}</span>`;
+}
+
+// ─── DATA PROCESSING ────────────────────────────────────────────────────────
+function processSheet(rows, cfg) {
+  if (rows.length < 2) return [];
+  const records = [];
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    let poc  = g(row, cfg.pocIdx);
+    let date = parseDate(g(row, cfg.dateIdx));
+    let conn = yesNo(g(row, cfg.connIdx));
+    let interested = cfg.intIdx !== null ? yesNo(g(row, cfg.intIdx)) : null;
+
+    // If primary call has no POC/date, try secondary call
+    if ((!poc || !date) && cfg.poc2Idx !== null) {
+      poc  = g(row, cfg.poc2Idx);
+      date = parseDate(g(row, cfg.date2Idx));
+      conn = yesNo(g(row, cfg.conn2Idx));
+      interested = cfg.int2Idx !== null ? yesNo(g(row, cfg.int2Idx)) : null;
+    }
+
+    if (!poc || !date) continue;
+
+    records.push({
+      cohort:             cfg.cohort,
+      city:               g(row, cfg.cityIdx),
+      calling_date:       date,
+      poc_name:           poc,
+      connected:          conn,
+      interested:         interested,
+      interview_taken:    cfg.iviewIdx  !== null ? yesNo(g(row, cfg.iviewIdx))  : null,
+      insightful:         cfg.insgIdx   !== null ? yesNo(g(row, cfg.insgIdx))   : null,
+      interview_taken_by: cfg.takenIdx  !== null ? g(row, cfg.takenIdx)          : '',
+      mode_of_interview:  cfg.modeIdx   !== null ? g(row, cfg.modeIdx)           : '',
+    });
+  }
+  return records;
+}
+
+function aggregate(records) {
+  const callers    = {};
+  const cohorts    = {};
+  const ixers      = {};
+  const modes      = {};
+  const byDatePoc  = {};
+
+  let tLeads = 0, tConn = 0, tInt = 0, tIview = 0, tInsg = 0;
+
+  for (const r of records) {
+    tLeads++;
+    if (r.connected       === 'Yes') tConn++;
+    if (r.interested      === 'Yes') tInt++;
+    if (r.interview_taken === 'Yes') tIview++;
+    if (r.insightful      === 'Yes') tInsg++;
+
+    // Callers
+    const poc = r.poc_name || 'Unknown';
+    if (!callers[poc]) callers[poc] = { leads:0, connected:0, interested:0, interviews:0, insightful:0 };
+    callers[poc].leads++;
+    if (r.connected       === 'Yes') callers[poc].connected++;
+    if (r.interested      === 'Yes') callers[poc].interested++;
+    if (r.interview_taken === 'Yes') callers[poc].interviews++;
+    if (r.insightful      === 'Yes') callers[poc].insightful++;
+
+    // Cohorts
+    const coh = r.cohort;
+    if (!cohorts[coh]) cohorts[coh] = { leads:0, connected:0, interested:0, interviews:0 };
+    cohorts[coh].leads++;
+    if (r.connected       === 'Yes') cohorts[coh].connected++;
+    if (r.interested      === 'Yes') cohorts[coh].interested++;
+    if (r.interview_taken === 'Yes') cohorts[coh].interviews++;
+
+    // Interviewers
+    if (r.interview_taken === 'Yes') {
+      const names = (r.interview_taken_by || 'Unknown')
+        .split(/[,\/]/).map(x => x.trim()).filter(Boolean);
+      const ns = names.length ? names : ['Unknown'];
+      for (const n of ns) {
+        if (!ixers[n]) ixers[n] = { interviews: 0, insightful: 0 };
+        ixers[n].interviews++;
+        if (r.insightful === 'Yes') ixers[n].insightful++;
+      }
+    }
+
+    // Modes
+    if (r.interview_taken === 'Yes' && r.mode_of_interview) {
+      const m = r.mode_of_interview || 'Not Specified';
+      modes[m] = (modes[m] || 0) + 1;
+    }
+
+    // Timeline
+    if (r.calling_date) {
+      const key = `${r.calling_date}|${poc}`;
+      byDatePoc[key] = (byDatePoc[key] || 0) + 1;
+    }
+  }
+
+  return { tLeads, tConn, tInt, tIview, tInsg, callers, cohorts, ixers, modes, byDatePoc };
+}
+
+// ─── CHARTS ─────────────────────────────────────────────────────────────────
+const PALETTE = ['#1a56db','#057a55','#c27803','#6c2bd9','#0694a2','#c81e1e','#d97706','#0e7490'];
+
+function dc(id) { if (CHARTS[id]) { CHARTS[id].destroy(); delete CHARTS[id]; } }
+
+function mkBar(id, labels, datasets, opts = {}) {
+  dc(id);
+  CHARTS[id] = new Chart(document.getElementById(id), {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } } },
+      scales: {
+        x: { ticks: { font: { size: 10 } } },
+        y: { ticks: { font: { size: 10 }, ...( opts.pct ? { callback: v => v + '%' } : {}) }, ...(opts.max ? { max: opts.max } : {}) }
+      },
+      ...opts.extra
+    }
+  });
+}
+
+function renderKPIs(agg) {
+  const { tLeads, tConn, tInt, tIview, tInsg } = agg;
+  document.getElementById('kpiGrid').innerHTML = `
+    <div class="kpi-card blue"><div class="kpi-label">Total Leads</div><div class="kpi-value">${tLeads.toLocaleString()}</div><div class="kpi-sub">Across all cohorts</div></div>
+    <div class="kpi-card green"><div class="kpi-label">Connected</div><div class="kpi-value">${tConn.toLocaleString()}</div><div class="kpi-rate">${pct(tConn,tLeads)} connection rate</div></div>
+    <div class="kpi-card amber"><div class="kpi-label">Interested</div><div class="kpi-value">${tInt.toLocaleString()}</div><div class="kpi-rate">${pct(tInt,tConn)} of connected</div></div>
+    <div class="kpi-card purple"><div class="kpi-label">Interviews</div><div class="kpi-value">${tIview}</div><div class="kpi-rate">${pct(tIview,tInt)} of interested</div></div>
+    <div class="kpi-card teal"><div class="kpi-label">Insightful</div><div class="kpi-value">${tInsg}</div><div class="kpi-rate">${pct(tInsg,tIview)} insight rate</div></div>
+    <div class="kpi-card red"><div class="kpi-label">Not Connected</div><div class="kpi-value">${(tLeads-tConn).toLocaleString()}</div><div class="kpi-sub">${pct(tLeads-tConn,tLeads)} no answer</div></div>
+  `;
+}
+
+function renderFunnel(agg) {
+  const { tLeads, tConn, tInt, tIview, tInsg } = agg;
+  const stages = [
+    { label:'Leads',      count:tLeads, color:'#1a56db' },
+    { label:'Connected',  count:tConn,  color:'#057a55' },
+    { label:'Interested', count:tInt,   color:'#c27803' },
+    { label:'Interviews', count:tIview, color:'#6c2bd9' },
+    { label:'Insightful', count:tInsg,  color:'#0694a2' },
+  ];
+  const max = stages[0].count || 1;
+  document.getElementById('funnelViz').innerHTML = stages.map((s, i) => {
+    const w = Math.max((s.count / max) * 100, 1);
+    const prev = i === 0 ? null : stages[i-1].count;
+    const sub = i === 0 ? '100% of leads' : `${pct(s.count, prev)} of previous`;
+    return `<div class="funnel-row">
+      <div class="funnel-label">${s.label}</div>
+      <div class="funnel-bar-wrap"><div class="funnel-bar" style="width:${w}%;background:${s.color};">${s.count >= 50 ? s.count.toLocaleString() : ''}</div></div>
+      <div class="funnel-count">${s.count < 50 ? s.count : ''}</div>
+      <div class="funnel-pct">${sub}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderCallerCharts(callers) {
+  const labels = Object.keys(callers);
+  const d = callers;
+
+  mkBar('callerChart', labels, [
+    { label:'Leads',     data: labels.map(l=>d[l].leads),     backgroundColor:'rgba(26,86,219,.2)',  borderColor:'#1a56db', borderWidth:1.5 },
+    { label:'Connected', data: labels.map(l=>d[l].connected), backgroundColor:'rgba(5,122,85,.7)',   borderColor:'#057a55', borderWidth:1.5 },
+    { label:'Interested',data: labels.map(l=>d[l].interested),backgroundColor:'rgba(194,120,3,.7)',  borderColor:'#c27803', borderWidth:1.5 },
+  ]);
+
+  mkBar('callerRateChart', labels, [
+    { label:'Connect %',  data: labels.map(l=>d[l].leads>0?+((d[l].connected/d[l].leads)*100).toFixed(1):0),   backgroundColor:'rgba(5,122,85,.7)',  borderColor:'#057a55', borderWidth:1.5 },
+    { label:'Interest %', data: labels.map(l=>d[l].connected>0?+((d[l].interested/d[l].connected)*100).toFixed(1):0), backgroundColor:'rgba(194,120,3,.7)', borderColor:'#c27803', borderWidth:1.5 },
+    { label:'Interview %',data: labels.map(l=>d[l].interested>0?+((d[l].interviews/d[l].interested)*100).toFixed(1):0),backgroundColor:'rgba(108,43,217,.7)',borderColor:'#6c2bd9', borderWidth:1.5 },
+  ], { pct: true, max: 105 });
+
+  document.getElementById('callerTableBody').innerHTML = labels.map(l => {
+    const r = d[l];
+    return `<tr>
+      <td><strong>${l}</strong></td>
+      <td>${r.leads.toLocaleString()}</td>
+      <td>${r.connected}</td>
+      <td>${rateBadge(pct(r.connected,r.leads))}</td>
+      <td>${r.interested}</td>
+      <td>${rateBadge(pct(r.interested,r.connected))}</td>
+      <td><span class="badge badge-purple">${r.interviews}</span></td>
+      <td><span class="badge badge-green">${r.insightful}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderCohortCharts(cohorts) {
+  const labels = Object.keys(cohorts);
+  const short  = labels.map(l => l.length > 24 ? l.slice(0,24)+'…' : l);
+  const d = cohorts;
+
+  dc('cohortLeadsChart');
+  CHARTS.cohortLeadsChart = new Chart(document.getElementById('cohortLeadsChart'), {
+    type: 'bar',
+    data: { labels: short, datasets: [{ label:'Leads', data: labels.map(l=>d[l].leads), backgroundColor: PALETTE.map(c=>c+'99'), borderColor: PALETTE, borderWidth: 1.5 }] },
+    options: { indexAxis:'y', responsive:true, plugins:{legend:{display:false}}, scales:{x:{ticks:{font:{size:10}}},y:{ticks:{font:{size:10}}}} }
+  });
+
+  dc('cohortRateChart');
+  CHARTS.cohortRateChart = new Chart(document.getElementById('cohortRateChart'), {
+    type: 'bar',
+    data: { labels: short, datasets: [
+      { label:'Connect %', data: labels.map(l=>d[l].leads>0?+((d[l].connected/d[l].leads)*100).toFixed(1):0), backgroundColor:'rgba(5,122,85,.7)', borderColor:'#057a55', borderWidth:1.5 },
+      { label:'Interest %',data: labels.map(l=>d[l].connected>0?+((d[l].interested/d[l].connected)*100).toFixed(1):0), backgroundColor:'rgba(194,120,3,.7)', borderColor:'#c27803', borderWidth:1.5 },
+    ]},
+    options: { indexAxis:'y', responsive:true, plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:12}}}, scales:{x:{max:110,ticks:{font:{size:10},callback:v=>v+'%'}},y:{ticks:{font:{size:10}}}} }
+  });
+
+  document.getElementById('cohortTableBody').innerHTML = labels.map(l => {
+    const r = d[l];
+    return `<tr>
+      <td><strong>${l}</strong></td>
+      <td>${r.leads.toLocaleString()}</td>
+      <td>${r.connected}</td>
+      <td>${rateBadge(pct(r.connected,r.leads))}</td>
+      <td>${r.interested}</td>
+      <td>${rateBadge(pct(r.interested,r.connected))}</td>
+      <td>${r.interviews}</td>
+      <td>${rateBadge(pct(r.interviews,r.interested))}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderInterviewCharts(ixers, modes) {
+  const labels = Object.keys(ixers).sort((a,b) => ixers[b].interviews - ixers[a].interviews);
+  const d = ixers;
+
+  mkBar('interviewerChart', labels, [
+    { label:'Interviews', data: labels.map(l=>d[l].interviews), backgroundColor:'rgba(26,86,219,.6)', borderColor:'#1a56db', borderWidth:1.5 },
+    { label:'Insightful', data: labels.map(l=>d[l].insightful), backgroundColor:'rgba(5,122,85,.8)',  borderColor:'#057a55', borderWidth:1.5 },
+  ]);
+
+  mkBar('insightRateChart', labels, [{
+    label:'Insight Rate %',
+    data: labels.map(l => d[l].interviews > 0 ? +((d[l].insightful/d[l].interviews)*100).toFixed(1) : 0),
+    backgroundColor: labels.map(l => {
+      const r = d[l].interviews > 0 ? (d[l].insightful/d[l].interviews)*100 : 0;
+      return r >= 70 ? 'rgba(5,122,85,.8)' : r >= 40 ? 'rgba(194,120,3,.8)' : 'rgba(200,30,30,.8)';
+    }),
+    borderWidth: 1.5,
+  }], { pct: true, max: 110 });
+
+  dc('modeChart');
+  const mLabels = Object.keys(modes);
+  CHARTS.modeChart = new Chart(document.getElementById('modeChart'), {
+    type: 'doughnut',
+    data: { labels: mLabels, datasets: [{ data: mLabels.map(l=>modes[l]), backgroundColor:['#1a56db','#057a55','#c27803'], borderWidth:2 }] },
+    options: { responsive:false, cutout:'60%', plugins:{legend:{position:'bottom',labels:{font:{size:11}}}} }
+  });
+
+  document.getElementById('interviewerTableBody').innerHTML = labels.map(l => {
+    const r = d[l];
+    const rate = pct(r.insightful, r.interviews);
+    const w = r.interviews > 0 ? (r.insightful/r.interviews*100).toFixed(0) : 0;
+    const col = parseFloat(rate) >= 70 ? '#057a55' : parseFloat(rate) >= 40 ? '#c27803' : '#c81e1e';
+    return `<tr>
+      <td><strong>${l}</strong></td>
+      <td>${r.interviews}</td>
+      <td>${r.insightful}</td>
+      <td>${rateBadge(rate)}</td>
+      <td><div class="progress-wrap"><div class="progress-fill" style="width:${w}%;background:${col};"></div></div></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderTimeline(byDatePoc, callerFilter) {
+  dc('timelineChart');
+  const allDates   = [...new Set(Object.keys(byDatePoc).map(k => k.split('|')[0]))].sort();
+  const allCallers = [...new Set(Object.keys(byDatePoc).map(k => k.split('|')[1]))].sort();
+  const colors     = ['#1a56db','#057a55','#c27803','#6c2bd9','#0694a2','#c81e1e'];
+
+  const filtered = callerFilter === 'all' ? allCallers : allCallers.filter(c => c === callerFilter);
+
+  const datasets = filtered.map((c, i) => ({
+    label: c,
+    data: allDates.map(d => byDatePoc[`${d}|${c}`] || 0),
+    backgroundColor: colors[i % colors.length] + 'cc',
+    borderColor: colors[i % colors.length],
+    borderWidth: 1, stack: 'stack'
+  }));
+
+  CHARTS.timelineChart = new Chart(document.getElementById('timelineChart'), {
+    type: 'bar',
+    data: { labels: allDates.map(d => d.slice(5)), datasets },
+    options: {
+      responsive: true,
+      scales: {
+        x: { stacked:true, ticks:{ font:{size:10}, maxRotation:45 } },
+        y: { stacked:true, ticks:{ font:{size:10} } }
+      },
+      plugins: { legend: { position:'top', labels:{ font:{size:11}, boxWidth:12 } } }
+    }
+  });
+}
+
+// ─── FILTER ──────────────────────────────────────────────────────────────────
+function applyFilter() {
+  const cohortF = document.getElementById('filterCohort').value;
+  const callerF = document.getElementById('filterCaller').value;
+
+  FILTERED_RECORDS = ALL_RECORDS.filter(r =>
+    (cohortF === 'all' || r.cohort === cohortF) &&
+    (callerF === 'all' || r.poc_name === callerF)
+  );
+
+  const agg = aggregate(FILTERED_RECORDS);
+  renderKPIs(agg);
+  renderFunnel(agg);
+  renderCallerCharts(agg.callers);
+  renderCohortCharts(agg.cohorts);
+  renderInterviewCharts(agg.ixers, agg.modes);
+  renderTimeline(agg.byDatePoc, callerF);
+}
+
+// ─── FETCH & LOAD ────────────────────────────────────────────────────────────
+async function loadAllData() {
+  document.getElementById('loadingOverlay').style.display = 'flex';
+  document.getElementById('errorBox').style.display = 'none';
+  document.getElementById('mainPage').style.display = 'none';
+
+  try {
+    const results = await Promise.all(
+      SHEET_CONFIGS.map(cfg =>
+        fetch(sheetUrl(cfg.sheetName))
+          .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); })
+          .then(text => parseCSV(text))
+          .then(rows => processSheet(rows, cfg))
+          .catch(err => { console.warn(`Sheet "${cfg.sheetName}" failed:`, err); return []; })
+      )
+    );
+
+    ALL_RECORDS = results.flat();
+
+    if (!ALL_RECORDS.length) throw new Error('No records loaded — sheet may not be public');
+
+    // Populate caller filter
+    const callers = [...new Set(ALL_RECORDS.map(r => r.poc_name).filter(Boolean))].sort();
+    const sel = document.getElementById('filterCaller');
+    sel.innerHTML = '<option value="all">All Callers</option>' +
+      callers.map(c => `<option value="${c}">${c}</option>`).join('');
+
+    document.getElementById('lastRefreshed').textContent =
+      '🕐 Updated ' + new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+    document.getElementById('recordCount').textContent =
+      `📊 ${ALL_RECORDS.length.toLocaleString()} records · ${SHEET_CONFIGS.length} sheets`;
+
+    // Reset filters and render
+    document.getElementById('filterCohort').value = 'all';
+    document.getElementById('filterCaller').value = 'all';
+    FILTERED_RECORDS = ALL_RECORDS;
+    const agg = aggregate(ALL_RECORDS);
+    renderKPIs(agg);
+    renderFunnel(agg);
+    renderCallerCharts(agg.callers);
+    renderCohortCharts(agg.cohorts);
+    renderInterviewCharts(agg.ixers, agg.modes);
+    renderTimeline(agg.byDatePoc, 'all');
+
+    document.getElementById('loadingOverlay').style.display = 'none';
+    document.getElementById('mainPage').style.display = 'block';
+
+  } catch (err) {
+    document.getElementById('loadingOverlay').style.display = 'none';
+    document.getElementById('errorBox').style.display = 'block';
+    document.getElementById('errorDetail').textContent = err.message;
+    console.error(err);
+  }
+}
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+loadAllData();
+</script>
+</body>
+</html>
