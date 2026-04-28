@@ -2,868 +2,1118 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>User Calling & Interview Dashboard — Live</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>CD Calling & Interview Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
-  :root {
-    --bg: #f0f4f9; --card: #ffffff; --primary: #1a56db; --primary-light: #e1effe;
-    --green: #057a55; --green-light: #def7ec; --amber: #c27803; --amber-light: #fdf6b2;
-    --red: #c81e1e; --red-light: #fde8e8; --purple: #6c2bd9; --purple-light: #edebfe;
-    --teal: #0694a2; --teal-light: #d5f5f6; --text: #111827; --text-muted: #6b7280;
-    --border: #e5e7eb; --shadow: 0 1px 3px rgba(0,0,0,.1); --shadow-md: 0 4px 6px -1px rgba(0,0,0,.1);
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+:root{
+  --bg:#f1f5f9;--card:#fff;--border:#e2e8f0;--text:#0f172a;--muted:#64748b;
+  --blue:#1d4ed8;--blue-l:#dbeafe;--green:#15803d;--green-l:#dcfce7;
+  --amber:#b45309;--amber-l:#fef3c7;--red:#b91c1c;--red-l:#fee2e2;
+  --purple:#7c3aed;--purple-l:#ede9fe;--teal:#0f766e;--teal-l:#ccfbf1;
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+  --shadow-md:0 4px 6px -1px rgba(0,0,0,.08),0 2px 4px -1px rgba(0,0,0,.04);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:13px}
 
-  /* Loading */
-  #loadingOverlay {
-    position: fixed; inset: 0; background: rgba(15,23,42,.85); z-index: 1000;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: white;
-  }
-  .spinner {
-    width: 48px; height: 48px; border: 4px solid rgba(255,255,255,.2);
-    border-top-color: white; border-radius: 50%; animation: spin .8s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .loading-text { font-size: 15px; font-weight: 600; }
-  .loading-sub  { font-size: 12px; opacity: .7; }
-  .loading-bars { display: flex; gap: 6px; margin-top: 8px; }
-  .loading-bar  { width: 8px; height: 8px; background: white; border-radius: 50%; animation: bounce .8s ease-in-out infinite; }
-  .loading-bar:nth-child(2) { animation-delay: .15s; }
-  .loading-bar:nth-child(3) { animation-delay: .3s; }
-  @keyframes bounce { 0%,80%,100% { transform: scale(.6); opacity:.4; } 40% { transform: scale(1); opacity:1; } }
+/* ── Loading ── */
+#overlay{position:fixed;inset:0;background:rgba(15,23,42,.9);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#fff}
+.spin{width:44px;height:44px;border:3px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.dots{display:flex;gap:5px}
+.dot{width:7px;height:7px;background:#fff;border-radius:50%;animation:bounce .8s ease-in-out infinite}
+.dot:nth-child(2){animation-delay:.15s}.dot:nth-child(3){animation-delay:.3s}
+@keyframes bounce{0%,80%,100%{transform:scale(.5);opacity:.4}40%{transform:scale(1);opacity:1}}
 
-  /* Error */
-  #errorBox {
-    display: none; background: #fde8e8; border: 1px solid #f98080; border-radius: 10px;
-    padding: 20px 24px; margin: 24px 32px; color: var(--red);
-  }
-  #errorBox h3 { font-size: 15px; margin-bottom: 8px; }
-  #errorBox p  { font-size: 13px; line-height: 1.6; }
-  #errorBox a  { color: var(--primary); }
+/* ── Error ── */
+#errbox{display:none;background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:18px 22px;margin:20px 28px;color:#991b1b}
+#errbox h3{margin-bottom:6px;font-size:14px}
+#errbox p{line-height:1.6;font-size:12px}
+#errbox a{color:var(--blue)}
 
-  /* Header */
-  .header { background: linear-gradient(135deg, #1a56db 0%, #0e4fbd 100%); color: white; padding: 20px 32px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
-  .header-left h1 { font-size: 20px; font-weight: 700; letter-spacing: -.3px; }
-  .header-left p  { font-size: 12px; opacity: .8; margin-top: 3px; }
-  .header-meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-  .meta-chip { background: rgba(255,255,255,.15); padding: 4px 12px; border-radius: 20px; font-size: 11px; }
-  .btn-refresh {
-    background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.35); color: white;
-    padding: 7px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
-    transition: background .15s; display: flex; align-items: center; gap: 6px;
-  }
-  .btn-refresh:hover { background: rgba(255,255,255,.3); }
-  .btn-refresh svg { width: 14px; height: 14px; }
+/* ── Header ── */
+.hdr{background:linear-gradient(135deg,#1e40af,#1d4ed8);color:#fff;padding:16px 28px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.hdr-l h1{font-size:18px;font-weight:700;letter-spacing:-.3px}
+.hdr-l p{font-size:11px;opacity:.75;margin-top:2px}
+.hdr-r{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.chip{background:rgba(255,255,255,.15);padding:3px 10px;border-radius:20px;font-size:11px}
+.btn-refresh{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);color:#fff;padding:6px 14px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;transition:background .15s}
+.btn-refresh:hover{background:rgba(255,255,255,.3)}
+.btn-refresh svg{width:13px;height:13px}
 
-  /* Filter bar */
-  .filterbar {
-    background: white; border-bottom: 1px solid var(--border); padding: 10px 32px;
-    display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
-  }
-  .filterbar label { font-size: 12px; color: var(--text-muted); font-weight: 600; }
-  .filterbar select {
-    font-size: 12px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px;
-    color: var(--text); background: white; cursor: pointer;
-  }
+/* ── Filter bar ── */
+.fbar{background:#fff;border-bottom:1px solid var(--border);padding:8px 28px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:100;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.fbar label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.fbar select{font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;color:var(--text);background:#fff;cursor:pointer}
+.fbar select:focus{outline:2px solid var(--blue);outline-offset:1px}
+.caller-btns{display:flex;gap:4px;flex-wrap:wrap}
+.caller-btn{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:#f8fafc;color:var(--muted);transition:all .15s}
+.caller-btn.active,.caller-btn:hover{background:var(--blue);color:#fff;border-color:var(--blue)}
+.caller-btn.all.active{background:#0f172a;border-color:#0f172a}
 
-  /* Page */
-  .page { padding: 20px 32px; max-width: 1400px; margin: 0 auto; }
-  .section-title {
-    font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;
-    letter-spacing: .8px; margin-bottom: 12px; margin-top: 26px;
-    display: flex; align-items: center; gap: 8px;
-  }
-  .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+/* ── Page ── */
+.page{padding:20px 28px;max-width:1380px;margin:0 auto}
+.sec-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin:22px 0 10px;display:flex;align-items:center;gap:8px}
+.sec-title::after{content:'';flex:1;height:1px;background:var(--border)}
 
-  /* KPI */
-  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
-  .kpi-card {
-    background: var(--card); border-radius: 12px; padding: 16px 18px; box-shadow: var(--shadow);
-    border-left: 4px solid; transition: transform .15s;
-  }
-  .kpi-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
-  .kpi-card.blue   { border-color: var(--primary); }
-  .kpi-card.green  { border-color: var(--green); }
-  .kpi-card.amber  { border-color: var(--amber); }
-  .kpi-card.red    { border-color: var(--red); }
-  .kpi-card.purple { border-color: var(--purple); }
-  .kpi-card.teal   { border-color: var(--teal); }
-  .kpi-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; }
-  .kpi-value { font-size: 30px; font-weight: 800; line-height: 1.1; margin-top: 5px; }
-  .kpi-card.blue   .kpi-value { color: var(--primary); }
-  .kpi-card.green  .kpi-value { color: var(--green); }
-  .kpi-card.amber  .kpi-value { color: var(--amber); }
-  .kpi-card.red    .kpi-value { color: var(--red); }
-  .kpi-card.purple .kpi-value { color: var(--purple); }
-  .kpi-card.teal   .kpi-value { color: var(--teal); }
-  .kpi-sub  { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
-  .kpi-rate {
-    font-size: 11px; font-weight: 700; margin-top: 5px;
-    padding: 2px 7px; border-radius: 20px; display: inline-block;
-  }
-  .kpi-card.green  .kpi-rate { background: var(--green-light);  color: var(--green); }
-  .kpi-card.amber  .kpi-rate { background: var(--amber-light);  color: var(--amber); }
-  .kpi-card.purple .kpi-rate { background: var(--purple-light); color: var(--purple); }
-  .kpi-card.teal   .kpi-rate { background: var(--teal-light);   color: var(--teal); }
+/* ── Cards ── */
+.card{background:var(--card);border-radius:10px;padding:16px 18px;box-shadow:var(--shadow)}
+.card-title{font-size:13px;font-weight:700;margin-bottom:2px}
+.card-sub{font-size:11px;color:var(--muted);margin-bottom:12px}
 
-  /* Charts */
-  .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  .charts-grid.three { grid-template-columns: 1fr 1fr 1fr; }
-  .chart-card { background: var(--card); border-radius: 12px; padding: 18px; box-shadow: var(--shadow); }
-  .chart-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
-  .chart-sub   { font-size: 11px; color: var(--text-muted); margin-bottom: 14px; }
+/* ── Grid layouts ── */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.g-full{grid-column:1/-1}
 
-  /* Funnel */
-  .funnel { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
-  .funnel-row  { display: flex; align-items: center; gap: 10px; }
-  .funnel-bar-wrap { flex: 1; background: #f3f4f6; border-radius: 4px; height: 34px; overflow: hidden; }
-  .funnel-bar  { height: 100%; border-radius: 4px; display: flex; align-items: center; padding: 0 10px; font-size: 12px; font-weight: 700; color: white; white-space: nowrap; }
-  .funnel-label { font-size: 11px; font-weight: 600; color: var(--text-muted); width: 80px; text-align: right; flex-shrink: 0; }
-  .funnel-count { font-size: 13px; font-weight: 800; color: var(--text); width: 48px; flex-shrink: 0; }
-  .funnel-pct   { font-size: 11px; color: var(--text-muted); width: 90px; flex-shrink: 0; }
+/* ── KPI chips ── */
+.kpi-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+.kpi{background:var(--card);border-radius:10px;padding:14px 16px;box-shadow:var(--shadow);border-left:3px solid;flex:1;min-width:140px}
+.kpi.b{border-color:var(--blue)}.kpi.g{border-color:var(--green)}.kpi.a{border-color:var(--amber)}
+.kpi.p{border-color:var(--purple)}.kpi.t{border-color:var(--teal)}.kpi.r{border-color:var(--red)}
+.kpi-lbl{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.kpi-val{font-size:26px;font-weight:800;line-height:1.1;margin-top:4px}
+.kpi.b .kpi-val{color:var(--blue)}.kpi.g .kpi-val{color:var(--green)}.kpi.a .kpi-val{color:var(--amber)}
+.kpi.p .kpi-val{color:var(--purple)}.kpi.t .kpi-val{color:var(--teal)}.kpi.r .kpi-val{color:var(--red)}
+.kpi-sub{font-size:10px;color:var(--muted);margin-top:3px}
+.kpi-rate{font-size:10px;font-weight:700;margin-top:4px;padding:2px 6px;border-radius:20px;display:inline-block}
+.kpi.g .kpi-rate{background:var(--green-l);color:var(--green)}.kpi.a .kpi-rate{background:var(--amber-l);color:var(--amber)}
+.kpi.p .kpi-rate{background:var(--purple-l);color:var(--purple)}.kpi.t .kpi-rate{background:var(--teal-l);color:var(--teal)}
 
-  /* Table */
-  .table-card { background: var(--card); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; }
-  table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  thead th {
-    background: #f9fafb; padding: 9px 12px; text-align: left; font-size: 11px;
-    font-weight: 700; color: var(--text-muted); text-transform: uppercase;
-    letter-spacing: .5px; border-bottom: 1px solid var(--border);
-  }
-  tbody td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-  tbody tr:last-child td { border-bottom: none; }
-  tbody tr:hover { background: #f9fafb; }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
-  .badge-green  { background: var(--green-light);  color: var(--green); }
-  .badge-amber  { background: var(--amber-light);  color: var(--amber); }
-  .badge-purple { background: var(--purple-light); color: var(--purple); }
-  .badge-red    { background: var(--red-light);    color: var(--red); }
-  .badge-blue   { background: var(--primary-light); color: var(--primary); }
-  .progress-wrap { background: #f3f4f6; border-radius: 4px; height: 5px; width: 70px; display: inline-block; vertical-align: middle; overflow: hidden; margin-right: 5px; }
-  .progress-fill { height: 100%; border-radius: 4px; }
+/* ── Funnel ── */
+.funnel{display:flex;flex-direction:column;gap:5px}
+.fn-row{display:flex;align-items:center;gap:10px}
+.fn-lbl{width:95px;text-align:right;font-size:11px;font-weight:600;color:var(--muted);flex-shrink:0}
+.fn-wrap{flex:1;background:#f1f5f9;border-radius:4px;height:32px;overflow:hidden}
+.fn-bar{height:100%;border-radius:4px;display:flex;align-items:center;padding:0 10px;font-size:11px;font-weight:700;color:#fff;white-space:nowrap;transition:width .5s ease}
+.fn-n{width:44px;font-size:13px;font-weight:800;color:var(--text);flex-shrink:0}
+.fn-meta{font-size:10px;color:var(--muted);width:110px;flex-shrink:0}
 
-  @media (max-width: 900px) {
-    .page { padding: 14px; }
-    .charts-grid, .charts-grid.three { grid-template-columns: 1fr; }
-    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-  }
+/* ── 2nd call note ── */
+.call-note{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
+.call-badge{padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600}
+
+/* ── Tables ── */
+.tbl-wrap{background:var(--card);border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{background:#f8fafc;padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)}
+tbody td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:#f8fafc}
+.bdg{display:inline-block;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700}
+.bdg-g{background:var(--green-l);color:var(--green)}.bdg-a{background:var(--amber-l);color:var(--amber)}
+.bdg-b{background:var(--blue-l);color:var(--blue)}.bdg-r{background:var(--red-l);color:var(--red)}
+.bdg-p{background:var(--purple-l);color:var(--purple)}.bdg-t{background:var(--teal-l);color:var(--teal)}
+.bdg-gray{background:#f1f5f9;color:var(--muted)}
+
+/* ── Progress bar ── */
+.prog-wrap{background:#f1f5f9;border-radius:4px;height:6px;width:80px;display:inline-block;vertical-align:middle;overflow:hidden}
+.prog-fill{height:100%;border-radius:4px;transition:width .4s}
+
+/* ── Target cards ── */
+.target-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.target-card{background:var(--card);border-radius:10px;padding:14px 16px;box-shadow:var(--shadow)}
+.tc-name{font-size:13px;font-weight:700;margin-bottom:8px}
+.tc-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.tc-lbl{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase}
+.tc-val{font-size:11px;font-weight:700}
+.tc-prog{margin-top:3px}
+
+/* ── Schedule table ── */
+.today-badge{display:inline-block;background:#fef9c3;color:#854d0e;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;margin-left:8px}
+.status-up{background:var(--blue-l);color:var(--blue)}
+.status-done{background:var(--green-l);color:var(--green)}
+.status-cancel{background:var(--red-l);color:var(--red)}
+
+/* ── Link button ── */
+.link-btn{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:var(--blue-l);color:var(--blue);border-radius:6px;font-size:10px;font-weight:600;text-decoration:none;cursor:pointer}
+.link-btn:hover{background:#bfdbfe}
+.placeholder-row{color:var(--muted);font-style:italic;text-align:center;padding:20px}
+
+/* ── Caller toggle buttons ── */
+.daily-controls{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.daily-controls span{font-size:11px;font-weight:600;color:var(--muted)}
+
+@media(max-width:900px){
+  .page{padding:12px}.g2,.g3{grid-template-columns:1fr}
+  .kpi{min-width:calc(50% - 10px)}
+}
 </style>
 </head>
 <body>
 
-<!-- Loading overlay -->
-<div id="loadingOverlay">
-  <div class="spinner"></div>
-  <div class="loading-text">Fetching live data from Google Sheets…</div>
-  <div class="loading-sub">Pulling 8 cohort sheets in parallel</div>
-  <div class="loading-bars">
-    <div class="loading-bar"></div>
-    <div class="loading-bar"></div>
-    <div class="loading-bar"></div>
-  </div>
+<div id="overlay">
+  <div class="spin"></div>
+  <div style="font-size:14px;font-weight:600">Loading live data from Google Sheets…</div>
+  <div style="font-size:11px;opacity:.7">Fetching 6 cohort sheets + interview schedule</div>
+  <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
 </div>
 
-<!-- Header -->
-<div class="header">
-  <div class="header-left">
-    <h1>🎯 User Calling &amp; Interview Dashboard</h1>
-    <p>Country Delight — Customer Research &amp; Outreach Tracker</p>
+<div class="hdr">
+  <div class="hdr-l">
+    <h1>🎯 Calling &amp; Interview Dashboard</h1>
+    <p>Country Delight — Customer Research Tracker</p>
   </div>
-  <div class="header-meta">
-    <span class="meta-chip" id="lastRefreshed">⏳ Loading…</span>
-    <span class="meta-chip" id="recordCount">—</span>
-    <button class="btn-refresh" onclick="loadAllData()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+  <div class="hdr-r">
+    <span class="chip" id="chipDate">⏳ Loading…</span>
+    <span class="chip" id="chipCount">—</span>
+    <button class="btn-refresh" onclick="loadAll()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>
       Refresh
     </button>
   </div>
 </div>
 
-<!-- Error box -->
-<div id="errorBox">
-  <h3>⚠️ Could not load data from Google Sheets</h3>
-  <p>
-    This usually means the sheet is not set to <strong>"Anyone with the link can view"</strong>.<br><br>
-    To fix: Open your Google Sheet → Click <strong>Share</strong> (top right) → Change from "Restricted" to
-    <strong>"Anyone with the link"</strong> → Set role to <strong>Viewer</strong> → Click Done → then
-    <a href="#" onclick="loadAllData();return false;">click Refresh</a>.<br><br>
-    <span style="font-size:11px;opacity:.7;">Error: <span id="errorDetail"></span></span>
-  </p>
-</div>
-
-<!-- Filter bar -->
-<div class="filterbar">
-  <label>Cohort:</label>
-  <select id="filterCohort" onchange="applyFilter()">
+<div class="fbar">
+  <label>Cohort</label>
+  <select id="fCohort" onchange="applyFilter()">
     <option value="all">All Cohorts</option>
     <option value="Early Users - No CS">Early Users – No CS</option>
     <option value="Elite Users">Elite Users</option>
-    <option value="Dropped Off - Delhi NCR">Dropped Off – Delhi NCR</option>
     <option value="Dropped Off - Hyd">Dropped Off – Hyd</option>
-    <option value="Inperson Leads">Inperson Leads</option>
     <option value="Review Cart → Not Placing Order">Review Cart → Not Placing</option>
     <option value="Placing Order → Not Taking OT">Placing Order → Not Taking OT</option>
     <option value="OT Order ≥ 500">OT Order ≥ 500</option>
   </select>
-  <label>Caller:</label>
-  <select id="filterCaller" onchange="applyFilter()">
-    <option value="all">All Callers</option>
-  </select>
 </div>
 
-<div class="page" id="mainPage" style="display:none;">
+<div id="errbox">
+  <h3>⚠️ Could not load data from Google Sheets</h3>
+  <p>Check that the sheet is set to <strong>"Anyone with the link → Viewer"</strong>, then <a href="#" onclick="loadAll();return false">click Refresh</a>.<br>
+  If the issue persists, check your internet connection.<br>
+  <span style="opacity:.6">Error detail: <span id="errDetail"></span></span></p>
+</div>
 
-  <div class="section-title">Overview</div>
-  <div class="kpi-grid" id="kpiGrid"></div>
+<div class="page" id="mainPage" style="display:none">
 
-  <div class="section-title">Conversion Funnel</div>
-  <div class="chart-card">
-    <div class="chart-title">Lead → Connected → Interested → Interview → Insightful</div>
-    <div class="chart-sub">Drop-off at each stage of the outreach pipeline</div>
-    <div class="funnel" id="funnelViz"></div>
-  </div>
-
-  <div class="section-title">Caller Performance</div>
-  <div class="charts-grid">
-    <div class="chart-card">
-      <div class="chart-title">Volume by Caller</div>
-      <div class="chart-sub">Leads, connected &amp; interested per caller</div>
-      <canvas id="callerChart" height="220"></canvas>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">Conversion Rates by Caller</div>
-      <div class="chart-sub">Connection rate, interest rate &amp; interview rate</div>
-      <canvas id="callerRateChart" height="220"></canvas>
-    </div>
-  </div>
-  <div style="margin-top:14px;" class="table-card">
+  <!-- ── TODAY'S SCHEDULE ── -->
+  <div class="sec-title">📅 Today's Interview Schedule <span id="todayLabel" class="today-badge"></span></div>
+  <div class="tbl-wrap">
     <table>
-      <thead><tr><th>Caller</th><th>Leads</th><th>Connected</th><th>Connect %</th><th>Interested</th><th>Interest %</th><th>Interviews</th><th>Insightful</th></tr></thead>
-      <tbody id="callerTableBody"></tbody>
+      <thead><tr>
+        <th>Date</th><th>Time</th><th>Mode</th><th>Cohort</th><th>Customer ID</th><th>Phone</th>
+        <th>Budget</th><th>Address</th><th>Intern</th><th>Team Member</th><th>Status</th>
+      </tr></thead>
+      <tbody id="scheduleTbody">
+        <tr><td colspan="10" class="placeholder-row">No interviews scheduled for today</td></tr>
+      </tbody>
     </table>
   </div>
 
-  <div class="section-title">Cohort Breakdown</div>
-  <div class="charts-grid">
-    <div class="chart-card">
-      <div class="chart-title">Leads by Cohort</div>
-      <div class="chart-sub">Total leads in each cohort pool</div>
-      <canvas id="cohortLeadsChart" height="260"></canvas>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">Conversion Rates by Cohort</div>
-      <div class="chart-sub">Connection &amp; interest rate comparison</div>
-      <canvas id="cohortRateChart" height="260"></canvas>
-    </div>
+  <!-- ── FUNNEL + KPIs ── -->
+  <div class="sec-title">📊 Calling Funnel</div>
+  <div style="display:flex;align-items:center;gap:8px;margin:-6px 0 12px;flex-wrap:wrap">
+    <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Filter by Caller:</span>
+    <div class="caller-btns" id="callerBtns"></div>
   </div>
-  <div style="margin-top:14px;" class="table-card">
-    <table>
-      <thead><tr><th>Cohort</th><th>Leads</th><th>Connected</th><th>Connect %</th><th>Interested</th><th>Interest %</th><th>Interviews</th><th>Interview %</th></tr></thead>
-      <tbody id="cohortTableBody"></tbody>
-    </table>
+  <div class="g2">
+    <div class="card">
+      <div class="card-title">Customer-Level Conversion</div>
+      <div class="card-sub">Each step counts distinct customers, not total calls</div>
+      <div class="funnel" id="funnelViz"></div>
+      <div class="call-note" id="callNote"></div>
+    </div>
+    <div>
+      <div class="kpi-row" id="kpiRow"></div>
+    </div>
   </div>
 
-  <div class="section-title">Interview Performance</div>
-  <div class="charts-grid three">
-    <div class="chart-card">
-      <div class="chart-title">Interviews by Interviewer</div>
-      <div class="chart-sub">Total &amp; insightful per person</div>
-      <canvas id="interviewerChart" height="240"></canvas>
-    </div>
-    <div class="chart-card" style="display:flex;flex-direction:column;align-items:center;">
-      <div style="width:100%;">
-        <div class="chart-title">Mode of Interview</div>
-        <div class="chart-sub">Virtual vs. in-person split</div>
-      </div>
-      <canvas id="modeChart" height="200" width="200"></canvas>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">Insight Rate by Interviewer</div>
-      <div class="chart-sub">% of interviews marked insightful</div>
-      <canvas id="insightRateChart" height="240"></canvas>
-    </div>
-  </div>
-  <div style="margin-top:14px;" class="table-card">
-    <table>
-      <thead><tr><th>Interviewer</th><th>Interviews</th><th>Insightful</th><th>Insight Rate</th><th></th></tr></thead>
-      <tbody id="interviewerTableBody"></tbody>
-    </table>
-  </div>
+  <!-- ── CALLER PERFORMANCE ── -->
+  <div class="sec-title">📞 Caller Performance</div>
 
-  <div class="section-title">Calling Timeline</div>
-  <div class="chart-card">
-    <div class="chart-title">Daily Calls — Stacked by Caller</div>
-    <div class="chart-sub">Activity over time across all active callers</div>
+  <!-- Daily timeline -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">Daily Call Volume</div>
+    <div class="card-sub">Calls attempted per day — use the toggle to isolate a caller</div>
+    <div class="daily-controls">
+      <span>Show:</span>
+      <div class="caller-btns" id="timelineCallerBtns"></div>
+    </div>
     <canvas id="timelineChart" height="130"></canvas>
   </div>
 
-  <div style="height:28px;"></div>
+  <!-- Caller summary table -->
+  <div class="tbl-wrap" style="margin-bottom:14px">
+    <table>
+      <thead><tr>
+        <th>Caller</th><th>1st Calls</th><th>2nd Calls</th><th>Total Attempts</th>
+        <th>Connected</th><th>Connect %</th><th>Interested</th><th>Interest %</th>
+        <th>Interviews</th><th>Insightful</th>
+      </tr></thead>
+      <tbody id="callerTbody"></tbody>
+    </table>
+  </div>
+
+  <!-- Caller × Cohort (only when All Cohorts) -->
+  <div id="cohortCallerSection">
+    <div class="sec-title">Caller Performance by Cohort</div>
+    <div class="tbl-wrap" style="margin-bottom:14px">
+      <table id="callerCohortTable">
+        <thead><tr id="callerCohortHead"></tr></thead>
+        <tbody id="callerCohortBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── COHORT OVERVIEW (All Cohorts only) ── -->
+  <div id="cohortSection">
+    <div class="sec-title">🗂️ Cohort Breakdown</div>
+    <div class="g2">
+      <div class="card">
+        <div class="card-title">Leads by Cohort</div>
+        <div class="card-sub">Total customers called per cohort</div>
+        <canvas id="cohortLeadsChart" height="240"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-title">Conversion Rates by Cohort</div>
+        <div class="card-sub">Connection % and interest %</div>
+        <canvas id="cohortRateChart" height="240"></canvas>
+      </div>
+    </div>
+    <div class="tbl-wrap" style="margin-top:14px;margin-bottom:4px">
+      <table>
+        <thead><tr><th>Cohort</th><th>Called</th><th>Connected</th><th>Connect %</th><th>Interested</th><th>Interest %</th><th>Interviews</th><th>Interview %</th></tr></thead>
+        <tbody id="cohortTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── INTERVIEW PERFORMANCE ── -->
+  <div class="sec-title">🎙️ Interview Performance — Weekly Targets</div>
+  <div style="display:flex;align-items:center;gap:10px;margin:-6px 0 14px;flex-wrap:wrap">
+    <span style="font-size:11px;color:var(--muted)">Targets from April 27, 2026 ·</span>
+    <select id="weekSelect" onchange="renderTargets()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;color:var(--text);background:#fff;cursor:pointer"></select>
+  </div>
+  <div class="target-grid" id="targetGrid"></div>
+
+  <div class="sec-title" style="margin-top:18px">Interviewer Summary</div>
+  <div class="g2" style="margin-bottom:14px">
+    <div class="card">
+      <div class="card-title">Interviews Taken</div>
+      <div class="card-sub">Total vs insightful per interviewer</div>
+      <canvas id="ixChart" height="240"></canvas>
+    </div>
+    <div class="card" style="display:flex;flex-direction:column;align-items:center">
+      <div style="width:100%"><div class="card-title">Mode of Interview</div><div class="card-sub">In-person vs virtual split</div></div>
+      <canvas id="modeChart" height="190" width="190"></canvas>
+    </div>
+  </div>
+
+  <div class="tbl-wrap" style="margin-bottom:4px">
+    <table>
+      <thead><tr>
+        <th>Interviewer</th><th>In-Person Done</th><th>IP Target/wk</th><th>IP This Week</th>
+        <th>Virtual Done</th><th>V Target/wk</th><th>V This Week</th>
+        <th>Total</th><th>Insightful</th><th>Insight %</th>
+      </tr></thead>
+      <tbody id="ixTbody"></tbody>
+    </table>
+  </div>
+
+  <!-- ── INTERVIEW LOG ── -->
+  <div class="sec-title">📋 Interview Log &amp; Reports</div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:-4px 0 12px">
+    <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Filter:</span>
+    <select id="logCohort" onchange="applyLogFilter()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer">
+      <option value="all">All Cohorts</option>
+    </select>
+    <select id="logInterviewer" onchange="applyLogFilter()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer">
+      <option value="all">All Interviewers</option>
+    </select>
+    <span style="font-size:11px;color:var(--muted)">Google Doc links appear once added to the sheet · AI cross-sell summaries available on request</span>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr>
+        <th>Customer</th><th>Cohort</th><th>Date</th><th>Interviewer</th><th>Mode</th><th>Insightful</th><th>Report &amp; Transcript</th>
+      </tr></thead>
+      <tbody id="logTbody"></tbody>
+    </table>
+  </div>
+
+  <div style="height:32px"></div>
 </div>
 
 <script>
-// ─── CONFIG ─────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════════════
 const SHEET_ID = '1RtHEVkSdMpBvtE7tFqE_lsJdIe_u-V9N3z3bflcZO6A';
+const SCHED_SHEET = 'Interviews Scheduled';
 
-// Column indices are 0-based and match the exact Excel column layout verified
-// against the actual sheet structure.
-const SHEET_CONFIGS = [
-  {
-    sheetName: 'Early Users With No CS',
-    cohort: 'Early Users - No CS',
-    cityIdx: 9,        // J: Area
-    pocIdx: 12,        // M: POC Name
-    dateIdx: 14,       // O: Calling1 date
-    connIdx: 15,       // P: Connected 1
-    intIdx: 16,        // Q: Interested
-    modeIdx: 17,       // R: Mode of Interview
-    iviewIdx: 18,      // S: Interview Taken
-    insgIdx: 19,       // T: Insightful
-    takenIdx: 20,      // U: Interview Taken By
-    poc2Idx: null, date2Idx: null, conn2Idx: null, int2Idx: null,
-  },
-  {
-    sheetName: 'Elite Users',
-    cohort: 'Elite Users',
-    cityIdx: 17,       // R: city
-    pocIdx: 24,        // Y: POC Name
-    dateIdx: 23,       // X: Calling date
-    connIdx: 26,       // AA: Connected
-    intIdx: 27,        // AB: Interested
-    poc2Idx: 29,       // AD: POC Name (2nd)
-    date2Idx: 28,      // AC: Calling date 2
-    conn2Idx: 31,      // AF: Connected 2
-    int2Idx: 32,       // AG: Interested 2
-    iviewIdx: 33,      // AH: Joined
-    insgIdx: 34,       // AI: Insightful
-    takenIdx: 35,      // AJ: Interview Taken By
-    modeIdx: 38,       // AM: Mode of Interview
-  },
-  {
-    sheetName: 'Dropped Off Users - Delhi NCR',
-    cohort: 'Dropped Off - Delhi NCR',
-    cityIdx: 6,        // G: city
-    pocIdx: 16,        // Q: POC Name
-    dateIdx: 15,       // P: Calling date
-    connIdx: 18,       // S: Connected
-    intIdx: 19,        // T: Interested
-    poc2Idx: null, date2Idx: null, conn2Idx: null, int2Idx: null,
-    iviewIdx: null, insgIdx: null, takenIdx: null, modeIdx: null,
-  },
-  {
-    sheetName: 'Dropped Off Users - Hyd',
-    cohort: 'Dropped Off - Hyd',
-    cityIdx: 6,        // G: city
-    pocIdx: 16,        // Q: POC Name
-    dateIdx: 15,       // P: Calling date
-    connIdx: 18,       // S: Connected
-    intIdx: 19,        // T: Interested
-    poc2Idx: null, date2Idx: null, conn2Idx: null, int2Idx: null,
-    iviewIdx: null, insgIdx: null, takenIdx: null, modeIdx: null,
-  },
-  {
-    sheetName: 'Inperson leads',
-    cohort: 'Inperson Leads',
-    cityIdx: 17,       // R: city
-    pocIdx: 24,        // Y: POC Name
-    dateIdx: 23,       // X: Calling date
-    connIdx: 26,       // AA: Connected
-    intIdx: 27,        // AB: Interested
-    poc2Idx: null, date2Idx: null, conn2Idx: null, int2Idx: null,
-    iviewIdx: 28,      // AC: Joined
-    insgIdx: 29,       // AD: Insightful
-    takenIdx: 30,      // AE: Interview Taken By
-    modeIdx: 33,       // AH: Mode of Interview
-  },
-  {
-    sheetName: ' Review cart<> not placing orde',
-    cohort: 'Review Cart → Not Placing Order',
-    cityIdx: 17,       // R: city
-    pocIdx: 28,        // AC: POC Name
-    dateIdx: 30,       // AE: Calling Date
-    connIdx: 31,       // AF: Connected
-    poc2Idx: 32,       // AG: POC Name 2
-    date2Idx: 34,      // AI: Calling Date 2
-    conn2Idx: 35,      // AJ: Connected 2
-    int2Idx: 36,       // AK: Interested 2
-    intIdx: null,
-    iviewIdx: null, insgIdx: null, takenIdx: null, modeIdx: 38,
-  },
-  {
-    sheetName: ' Placing order <> Not taking OT',
-    cohort: 'Placing Order → Not Taking OT',
-    cityIdx: 17,       // R: city
-    pocIdx: 29,        // AD: POC Name
-    dateIdx: 30,       // AE: Calling Date
-    connIdx: 32,       // AG: Connected
-    poc2Idx: 33,       // AH: 2nd POC Name
-    date2Idx: 34,      // AI: 2nd Calling Date
-    conn2Idx: 36,      // AK: 2nd Connected
-    int2Idx: 37,       // AL: 2nd Interested
-    intIdx: null,
-    iviewIdx: null, insgIdx: null, takenIdx: null, modeIdx: 39,
-  },
-  {
-    sheetName: 'OT order >= 500',
-    cohort: 'OT Order ≥ 500',
-    cityIdx: 17,       // R: city
-    pocIdx: 29,        // AD: POC Name
-    dateIdx: 30,       // AE: Calling Date
-    connIdx: 32,       // AG: Connected
-    intIdx: 33,        // AH: Interested
-    poc2Idx: null, date2Idx: null, conn2Idx: null, int2Idx: null,
-    iviewIdx: null, insgIdx: null, takenIdx: null, modeIdx: 35,
-  },
+const CFGS = [
+  { sheetName:'Early Users With No CS', cohort:'Early Users - No CS',
+    custIdx:0, nameIdx:7, cityIdx:9,
+    pocIdx:12, dateIdx:14, connIdx:15, intIdx:16,
+    modeIdx:17, iviewIdx:18, insgIdx:19, takenIdx:20, reportIdx:26,
+    poc2Idx:null, date2Idx:null, conn2Idx:null, int2Idx:null },
+
+  { sheetName:'Elite Users', cohort:'Elite Users',
+    custIdx:1, nameIdx:6, cityIdx:17,
+    pocIdx:24, dateIdx:23, connIdx:26, intIdx:27,
+    poc2Idx:29, date2Idx:28, conn2Idx:31, int2Idx:32,
+    iviewIdx:33, insgIdx:34, takenIdx:35, modeIdx:38, reportIdx:null },
+
+  { sheetName:'Dropped Off Users - Hyd', cohort:'Dropped Off - Hyd',
+    custIdx:0, nameIdx:null, cityIdx:6,
+    pocIdx:16, dateIdx:15, connIdx:18, intIdx:19,
+    poc2Idx:null, date2Idx:null, conn2Idx:null, int2Idx:null,
+    iviewIdx:null, insgIdx:null, takenIdx:null, modeIdx:null, reportIdx:null },
+
+  { sheetName:' Review cart<> not placing orde', cohort:'Review Cart → Not Placing Order',
+    custIdx:0, nameIdx:null, cityIdx:17,
+    pocIdx:28, dateIdx:30, connIdx:31, intIdx:null,
+    poc2Idx:32, date2Idx:34, conn2Idx:35, int2Idx:36,
+    iviewIdx:null, insgIdx:null, takenIdx:null, modeIdx:38, reportIdx:null },
+
+  { sheetName:' Placing order <> Not taking OT', cohort:'Placing Order → Not Taking OT',
+    custIdx:0, nameIdx:null, cityIdx:17,
+    pocIdx:29, dateIdx:30, connIdx:32, intIdx:null,
+    poc2Idx:33, date2Idx:34, conn2Idx:36, int2Idx:37,
+    iviewIdx:null, insgIdx:null, takenIdx:null, modeIdx:39, reportIdx:null },
+
+  { sheetName:'OT order >= 500', cohort:'OT Order ≥ 500',
+    custIdx:0, nameIdx:null, cityIdx:17,
+    pocIdx:29, dateIdx:30, connIdx:32, intIdx:33,
+    poc2Idx:null, date2Idx:null, conn2Idx:null, int2Idx:null,
+    iviewIdx:null, insgIdx:null, takenIdx:null, modeIdx:35, reportIdx:null },
 ];
 
-// ─── STATE ───────────────────────────────────────────────────────────────────
-let ALL_RECORDS = [];
-let FILTERED_RECORDS = [];
-let CHARTS = {};
+const T_START = new Date('2026-04-27');
+const TARGETS = {
+  ip: { Roshan:2, Anant:2, Neha:2, Rudra:2, Varalakshmi:3, Deepika:3, Sannidhi:2, Taneesha:2 },
+  vt: { Roshan:0, Anant:0, Neha:0, Rudra:0, Varalakshmi:10, Deepika:10, Sannidhi:4, Taneesha:4 },
+};
+const PAL = ['#1d4ed8','#15803d','#b45309','#7c3aed','#0f766e','#b91c1c','#0369a1','#065f46'];
 
-// ─── UTILITIES ───────────────────────────────────────────────────────────────
-function sheetUrl(name) {
-  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`;
+function generateWeeks(){
+  const weeks=[]; const now=new Date();
+  for(let w=0;w<52;w++){
+    const ws=new Date(T_START); ws.setDate(ws.getDate()+w*7);
+    if(ws>now&&w>0)break;
+    const we=new Date(ws); we.setDate(we.getDate()+7);
+    const fmt=d=>d.toLocaleDateString('en-IN',{day:'numeric',month:'short'});
+    weeks.push({label:`Week ${w+1}  (${fmt(ws)} – ${fmt(we)})`,start:ws.toISOString().slice(0,10),end:we.toISOString().slice(0,10),num:w+1});
+  }
+  return weeks;
 }
 
-function parseCSV(text) {
-  const rows = [];
-  let row = [], field = '', inQ = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (c === '"') {
-      if (inQ && text[i+1] === '"') { field += '"'; i++; }
-      else inQ = !inQ;
-    } else if (c === ',' && !inQ) {
-      row.push(field); field = '';
-    } else if ((c === '\n' || c === '\r') && !inQ) {
-      if (c === '\r' && text[i+1] === '\n') i++;
-      row.push(field); field = '';
-      if (row.some(x => x.trim())) rows.push(row);
-      row = [];
-    } else {
-      field += c;
+function getWeekCompletions(weekStart,weekEnd){
+  // Count completed interviews from Interviews Scheduled sheet
+  const comp={};
+  for(const row of SCHED){
+    const status=(row['Status']||'').toLowerCase();
+    if(!status.includes('complet')&&!status.includes('done'))continue;
+    const d=parseSchedDate(row['Interview Date']||'');
+    if(!d||d<weekStart||d>=weekEnd)continue;
+    const mode=(row['Mode of Interview']||'').toLowerCase();
+    const isIP=mode.includes('person');
+    // Count both intern and team member
+    const people=[
+      ...(row['Intern to join']||'').split(/[,\/]/).map(x=>x.trim()).filter(Boolean),
+      ...(row['Team member to join']||'').split(/[,\/]/).map(x=>x.trim()).filter(Boolean),
+    ];
+    for(const p of people){
+      if(!comp[p])comp[p]={ip:0,vt:0};
+      if(isIP)comp[p].ip++;else comp[p].vt++;
     }
   }
-  if (field !== '' || row.length) { row.push(field); if (row.some(x=>x.trim())) rows.push(row); }
-  return rows;
+  return comp;
 }
 
-function g(row, idx) {
-  if (idx === null || idx === undefined || idx >= row.length) return '';
-  return (row[idx] || '').trim();
+// ══════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════
+let ALL=[], SCHED=[], FILTERED=[], CHARTS={}, ACTIVE_CALLER='all', TIMELINE_CALLER='all';
+
+// ══════════════════════════════════════════════════════
+// UTILITIES
+// ══════════════════════════════════════════════════════
+// JSONP fetch — works from file:// AND hosted pages, no CORS issues
+function fetchSheetGViz(sheetName){
+  return new Promise((resolve,reject)=>{
+    const cb='_gviz_'+Date.now()+'_'+Math.floor(Math.random()*99999);
+    const script=document.createElement('script');
+    const timer=setTimeout(()=>{cleanup();reject(new Error('Timeout: '+sheetName));},25000);
+    function cleanup(){
+      clearTimeout(timer);
+      try{delete window[cb];}catch(e){}
+      if(script.parentNode)script.parentNode.removeChild(script);
+    }
+    window[cb]=function(resp){
+      cleanup();
+      try{
+        if(!resp||resp.status==='error'){
+          reject(new Error('Sheet error: '+(resp?.errors?.[0]?.message||'unknown')));return;
+        }
+        const tbl=resp.table;
+        if(!tbl||!tbl.cols){resolve([]);return;}
+        const headers=tbl.cols.map(c=>c.label||c.id||'');
+        const rows=[headers];
+        for(const row of(tbl.rows||[])){
+          const cells=(row.c||[]).map(cell=>{
+            if(!cell||cell.v===null||cell.v===undefined)return'';
+            const v=cell.v;
+            // Convert GViz Date(...) values to usable strings
+            if(typeof v==='string'&&v.startsWith('Date(')){
+              // Date-only:     Date(2026,3,28)          → 3 numbers
+              // Datetime:      Date(2026,3,28,18,0,0)   → 6 numbers (time component present)
+              const dt=v.match(/Date\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)/);
+              if(dt){
+                // Datetime — build ISO date string AND a human-readable time
+                const yr=dt[1], mo=String(+dt[2]+1).padStart(2,'0'), dy=dt[3].padStart(2,'0');
+                const h=+dt[4], mi=String(+dt[5]).padStart(2,'0');
+                const ampm=h>=12?'PM':'AM', h12=h===0?12:h>12?h-12:h;
+                // Return as "YYYY-MM-DD HH:MM AMPM" so both date and time survive
+                return`${yr}-${mo}-${dy} ${h12}:${mi} ${ampm}`;
+              }
+              const d=v.match(/Date\((\d+),(\d+),(\d+)/);
+              if(d)return`${d[1]}-${String(+d[2]+1).padStart(2,'0')}-${String(d[3]).padStart(2,'0')}`;
+              return cell.f||'';
+            }
+            // Numbers: could be a date serial or a plain number
+            if(typeof v==='number'){
+              if(cell.f){
+                const f=cell.f.trim();
+                // Year 1899/1900 = Excel epoch artifact (serial 0 / empty date cell) → treat as empty
+                if(/\b(1899|1900)\b/.test(f))return'';
+                return f.replace(/,/g,'');
+              }
+              return String(v);
+            }
+            return String(v);
+          });
+          while(cells.length<headers.length)cells.push('');
+          rows.push(cells);
+        }
+        resolve(rows);
+      }catch(e){reject(e);}
+    };
+    script.onerror=()=>{cleanup();reject(new Error('Load failed: '+sheetName));};
+    script.src=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json;responseHandler:${cb}&sheet=${encodeURIComponent(sheetName)}`;
+    document.head.appendChild(script);
+  });
 }
 
-function yesNo(v) {
-  if (!v) return null;
-  const s = v.trim().toLowerCase();
-  if (s === 'yes' || s === 'y') return 'Yes';
-  if (s === 'no'  || s === 'n') return 'No';
+function g(row,idx){ return(idx===null||idx===undefined||idx>=row.length)?'':( row[idx]||'').trim(); }
+function yn(v){ const s=(v||'').trim().toLowerCase(); return s==='yes'||s==='y'?'Yes':s==='no'||s==='n'?'No':null; }
+
+function pd(v){
+  if(!v)return null; const s=String(v).trim();
+  if(!s||s.startsWith('='))return null;
+  // Already ISO YYYY-MM-DD
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+  // GViz formatted date: M/D/YYYY
+  const mdy=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(mdy)return`${mdy[3]}-${mdy[1].padStart(2,'0')}-${mdy[2].padStart(2,'0')}`;
+  // DD-MM-YYYY or similar
+  const dmy=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if(dmy){const y=dmy[3].length===2?'20'+dmy[3]:dmy[3];return`${y}-${dmy[2].padStart(2,'0')}-${dmy[1].padStart(2,'0')}`;}
+  // Fallback: try JS Date (using local components to avoid UTC shift)
+  try{const d=new Date(s);if(!isNaN(d))return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}catch(e){}
   return null;
 }
 
-function parseDate(v) {
-  if (!v) return null;
-  // Handle various date formats from Google Sheets CSV
-  const s = v.trim();
-  if (!s || s === '' || s.startsWith('=')) return null;
-  try {
-    const d = new Date(s);
-    if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
-  } catch(e) {}
-  // Try DD-MM-YYYY
-  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
-  if (m) {
-    const y = m[3].length === 2 ? '20' + m[3] : m[3];
-    return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
-  }
-  return null;
+function pct(a,b){ return b>0?((a/b)*100).toFixed(1)+'%':'—'; }
+
+function rateBdg(r){
+  const v=parseFloat(r);
+  if(isNaN(v))return `<span class="bdg bdg-gray">—</span>`;
+  const[bg,fg]=v>=50?['var(--green-l)','var(--green)']:v>=25?['var(--amber-l)','var(--amber)']:['var(--red-l)','var(--red)'];
+  return `<span class="bdg" style="background:${bg};color:${fg}">${r}</span>`;
 }
 
-function pct(a, b) {
-  if (!b) return '—';
-  return ((a / b) * 100).toFixed(1) + '%';
+function today(){ return new Date().toISOString().slice(0,10); }
+
+function weekInfo(){
+  const now=new Date(); const ms=7*24*60*60*1000;
+  const wk=Math.max(0,Math.floor((now-T_START)/ms));
+  const wkStart=new Date(T_START); wkStart.setDate(wkStart.getDate()+wk*7);
+  const wkEnd=new Date(wkStart); wkEnd.setDate(wkEnd.getDate()+7);
+  return { week:wk+1, start:wkStart.toISOString().slice(0,10), end:wkEnd.toISOString().slice(0,10) };
 }
 
-function rateBadge(rateStr) {
-  const v = parseFloat(rateStr);
-  if (isNaN(v)) return `<span class="badge" style="background:#f3f4f6;color:#6b7280;">—</span>`;
-  const [bg, fg] = v >= 50 ? ['#def7ec','#057a55'] : v >= 25 ? ['#fdf6b2','#c27803'] : ['#fde8e8','#c81e1e'];
-  return `<span class="badge" style="background:${bg};color:${fg};">${rateStr}</span>`;
+function inCurrentWeek(dateStr){
+  const wi=weekInfo(); return dateStr>=wi.start&&dateStr<wi.end;
 }
 
-// ─── DATA PROCESSING ────────────────────────────────────────────────────────
-function processSheet(rows, cfg) {
-  if (rows.length < 2) return [];
-  const records = [];
-  for (let i = 1; i < rows.length; i++) {
-    const row = rows[i];
-    let poc  = g(row, cfg.pocIdx);
-    let date = parseDate(g(row, cfg.dateIdx));
-    let conn = yesNo(g(row, cfg.connIdx));
-    let interested = cfg.intIdx !== null ? yesNo(g(row, cfg.intIdx)) : null;
-
-    // If primary call has no POC/date, try secondary call
-    if ((!poc || !date) && cfg.poc2Idx !== null) {
-      poc  = g(row, cfg.poc2Idx);
-      date = parseDate(g(row, cfg.date2Idx));
-      conn = yesNo(g(row, cfg.conn2Idx));
-      interested = cfg.int2Idx !== null ? yesNo(g(row, cfg.int2Idx)) : null;
+// ══════════════════════════════════════════════════════
+// DATA PROCESSING
+// ══════════════════════════════════════════════════════
+function processSheet(rows, cfg){
+  if(rows.length<2)return[];
+  const records=[];
+  for(let i=1;i<rows.length;i++){
+    const row=rows[i];
+    const cid=g(row,cfg.custIdx)||`r${i}`;
+    const poc1=g(row,cfg.pocIdx), date1=pd(g(row,cfg.dateIdx));
+    if(poc1&&date1){
+      records.push({
+        cid, cohort:cfg.cohort, city:g(row,cfg.cityIdx),
+        name:cfg.nameIdx!=null?g(row,cfg.nameIdx):'',
+        calling_date:date1, poc:poc1, attempt:1,
+        conn:yn(g(row,cfg.connIdx)),
+        int:cfg.intIdx!=null?yn(g(row,cfg.intIdx)):null,
+        iview:cfg.iviewIdx!=null?yn(g(row,cfg.iviewIdx)):null,
+        insg:cfg.insgIdx!=null?yn(g(row,cfg.insgIdx)):null,
+        taken_by:cfg.takenIdx!=null?g(row,cfg.takenIdx):'',
+        mode:cfg.modeIdx!=null?g(row,cfg.modeIdx):'',
+        report:cfg.reportIdx!=null?g(row,cfg.reportIdx):'',
+      });
     }
-
-    if (!poc || !date) continue;
-
-    records.push({
-      cohort:             cfg.cohort,
-      city:               g(row, cfg.cityIdx),
-      calling_date:       date,
-      poc_name:           poc,
-      connected:          conn,
-      interested:         interested,
-      interview_taken:    cfg.iviewIdx  !== null ? yesNo(g(row, cfg.iviewIdx))  : null,
-      insightful:         cfg.insgIdx   !== null ? yesNo(g(row, cfg.insgIdx))   : null,
-      interview_taken_by: cfg.takenIdx  !== null ? g(row, cfg.takenIdx)          : '',
-      mode_of_interview:  cfg.modeIdx   !== null ? g(row, cfg.modeIdx)           : '',
-    });
+    if(cfg.poc2Idx!=null){
+      const poc2=g(row,cfg.poc2Idx), date2=pd(g(row,cfg.date2Idx));
+      if(poc2&&date2){
+        records.push({
+          cid, cohort:cfg.cohort, city:g(row,cfg.cityIdx),
+          name:cfg.nameIdx!=null?g(row,cfg.nameIdx):'',
+          calling_date:date2, poc:poc2, attempt:2,
+          conn:cfg.conn2Idx!=null?yn(g(row,cfg.conn2Idx)):null,
+          int:cfg.int2Idx!=null?yn(g(row,cfg.int2Idx)):null,
+          iview:null, insg:null, taken_by:'', mode:'', report:'',
+        });
+      }
+    }
   }
   return records;
 }
 
-function aggregate(records) {
-  const callers    = {};
-  const cohorts    = {};
-  const ixers      = {};
-  const modes      = {};
-  const byDatePoc  = {};
+function processSched(rows){
+  if(rows.length<2)return[];
+  const hdrs=rows[0]; const out=[];
+  for(let i=1;i<rows.length;i++){
+    const r=rows[i];
+    const obj={};
+    hdrs.forEach((h,j)=>{ obj[h.trim()]=( r[j]||'').trim(); });
+    if(Object.values(obj).some(v=>v))out.push(obj);
+  }
+  return out;
+}
 
-  let tLeads = 0, tConn = 0, tInt = 0, tIview = 0, tInsg = 0;
+// ══════════════════════════════════════════════════════
+// AGGREGATION
+// ══════════════════════════════════════════════════════
+function agg(records){
+  // Customer-level map (for funnel)
+  const cmap={};
+  for(const r of records){
+    const k=r.cohort+'|'+r.cid;
+    if(!cmap[k])cmap[k]={cohort:r.cohort,poc:r.poc,conn:false,int:false,iview:false,insg:false};
+    if(r.conn==='Yes')cmap[k].conn=true;
+    if(r.int==='Yes')cmap[k].int=true;
+    if(r.iview==='Yes')cmap[k].iview=true;
+    if(r.insg==='Yes')cmap[k].insg=true;
+  }
+  const custs=Object.values(cmap);
+  const funnel={
+    called:custs.length,
+    connected:custs.filter(c=>c.conn).length,
+    interested:custs.filter(c=>c.int).length,
+    interviewed:custs.filter(c=>c.iview).length,
+    insightful:custs.filter(c=>c.insg).length,
+  };
 
-  for (const r of records) {
-    tLeads++;
-    if (r.connected       === 'Yes') tConn++;
-    if (r.interested      === 'Yes') tInt++;
-    if (r.interview_taken === 'Yes') tIview++;
-    if (r.insightful      === 'Yes') tInsg++;
+  // Call-level (for callers)
+  const callers={}, cohorts={}, ixers={}, modes={}, byDatePoc={};
+  for(const r of records){
+    // Callers (call-level)
+    const poc=r.poc||'Unknown';
+    if(!callers[poc])callers[poc]={first:0,second:0,conn:0,int:0,iview:0,insg:0};
+    if(r.attempt===1)callers[poc].first++;else callers[poc].second++;
+    if(r.conn==='Yes')callers[poc].conn++;
+    if(r.int==='Yes')callers[poc].int++;
+    if(r.iview==='Yes')callers[poc].iview++;
+    if(r.insg==='Yes')callers[poc].insg++;
 
-    // Callers
-    const poc = r.poc_name || 'Unknown';
-    if (!callers[poc]) callers[poc] = { leads:0, connected:0, interested:0, interviews:0, insightful:0 };
-    callers[poc].leads++;
-    if (r.connected       === 'Yes') callers[poc].connected++;
-    if (r.interested      === 'Yes') callers[poc].interested++;
-    if (r.interview_taken === 'Yes') callers[poc].interviews++;
-    if (r.insightful      === 'Yes') callers[poc].insightful++;
-
-    // Cohorts
-    const coh = r.cohort;
-    if (!cohorts[coh]) cohorts[coh] = { leads:0, connected:0, interested:0, interviews:0 };
-    cohorts[coh].leads++;
-    if (r.connected       === 'Yes') cohorts[coh].connected++;
-    if (r.interested      === 'Yes') cohorts[coh].interested++;
-    if (r.interview_taken === 'Yes') cohorts[coh].interviews++;
-
+    // Cohorts (customer-level via cmap)
     // Interviewers
-    if (r.interview_taken === 'Yes') {
-      const names = (r.interview_taken_by || 'Unknown')
-        .split(/[,\/]/).map(x => x.trim()).filter(Boolean);
-      const ns = names.length ? names : ['Unknown'];
-      for (const n of ns) {
-        if (!ixers[n]) ixers[n] = { interviews: 0, insightful: 0 };
-        ixers[n].interviews++;
-        if (r.insightful === 'Yes') ixers[n].insightful++;
+    if(r.iview==='Yes'&&r.taken_by){
+      const ns=r.taken_by.split(/[,\/]/).map(x=>x.trim()).filter(Boolean);
+      const mode=r.mode||'Not Specified';
+      modes[mode]=(modes[mode]||0)+1;
+      for(const n of ns){
+        if(!ixers[n])ixers[n]={total:0,insg:0,ip:0,vt:0,ipThis:0,vtThis:0};
+        ixers[n].total++;
+        if(r.insg==='Yes')ixers[n].insg++;
+        const isIP=(mode||'').toLowerCase().includes('person');
+        if(isIP)ixers[n].ip++;else ixers[n].vt++;
+        if(inCurrentWeek(r.calling_date)){
+          if(isIP)ixers[n].ipThis++;else ixers[n].vtThis++;
+        }
       }
     }
 
-    // Modes
-    if (r.interview_taken === 'Yes' && r.mode_of_interview) {
-      const m = r.mode_of_interview || 'Not Specified';
-      modes[m] = (modes[m] || 0) + 1;
-    }
-
     // Timeline
-    if (r.calling_date) {
-      const key = `${r.calling_date}|${poc}`;
-      byDatePoc[key] = (byDatePoc[key] || 0) + 1;
+    if(r.calling_date){
+      const key=r.calling_date+'|'+poc;
+      byDatePoc[key]=(byDatePoc[key]||0)+1;
     }
   }
 
-  return { tLeads, tConn, tInt, tIview, tInsg, callers, cohorts, ixers, modes, byDatePoc };
+  // Cohorts from customer map
+  for(const c of custs){
+    const coh=c.cohort;
+    if(!cohorts[coh])cohorts[coh]={called:0,conn:0,int:0,iview:0};
+    cohorts[coh].called++;
+    if(c.conn)cohorts[coh].conn++;
+    if(c.int)cohorts[coh].int++;
+    if(c.iview)cohorts[coh].iview++;
+  }
+
+  const secondCalls=records.filter(r=>r.attempt===2).length;
+  const firstCalls=records.filter(r=>r.attempt===1).length;
+
+  return{funnel,callers,cohorts,ixers,modes,byDatePoc,secondCalls,firstCalls,total:records.length};
 }
 
-// ─── CHARTS ─────────────────────────────────────────────────────────────────
-const PALETTE = ['#1a56db','#057a55','#c27803','#6c2bd9','#0694a2','#c81e1e','#d97706','#0e7490'];
-
-function dc(id) { if (CHARTS[id]) { CHARTS[id].destroy(); delete CHARTS[id]; } }
-
-function mkBar(id, labels, datasets, opts = {}) {
+// ══════════════════════════════════════════════════════
+// CHART HELPERS
+// ══════════════════════════════════════════════════════
+function dc(id){if(CHARTS[id]){CHARTS[id].destroy();delete CHARTS[id];}}
+function mkBar(id,labels,datasets,opts={}){
   dc(id);
-  CHARTS[id] = new Chart(document.getElementById(id), {
-    type: 'bar',
-    data: { labels, datasets },
-    options: {
-      responsive: true,
-      plugins: { legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } } },
-      scales: {
-        x: { ticks: { font: { size: 10 } } },
-        y: { ticks: { font: { size: 10 }, ...( opts.pct ? { callback: v => v + '%' } : {}) }, ...(opts.max ? { max: opts.max } : {}) }
-      },
-      ...opts.extra
-    }
-  });
+  CHARTS[id]=new Chart(document.getElementById(id),{type:'bar',data:{labels,datasets},options:{
+    responsive:true,
+    plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}}},
+    scales:{
+      x:{stacked:!!opts.stacked,ticks:{font:{size:10}}},
+      y:{stacked:!!opts.stacked,ticks:{font:{size:10},...(opts.pct?{callback:v=>v+'%'}:{})},max:opts.max||undefined}
+    },...(opts.indexAxis?{indexAxis:opts.indexAxis}:{})
+  }});
 }
 
-function renderKPIs(agg) {
-  const { tLeads, tConn, tInt, tIview, tInsg } = agg;
-  document.getElementById('kpiGrid').innerHTML = `
-    <div class="kpi-card blue"><div class="kpi-label">Total Leads</div><div class="kpi-value">${tLeads.toLocaleString()}</div><div class="kpi-sub">Across all cohorts</div></div>
-    <div class="kpi-card green"><div class="kpi-label">Connected</div><div class="kpi-value">${tConn.toLocaleString()}</div><div class="kpi-rate">${pct(tConn,tLeads)} connection rate</div></div>
-    <div class="kpi-card amber"><div class="kpi-label">Interested</div><div class="kpi-value">${tInt.toLocaleString()}</div><div class="kpi-rate">${pct(tInt,tConn)} of connected</div></div>
-    <div class="kpi-card purple"><div class="kpi-label">Interviews</div><div class="kpi-value">${tIview}</div><div class="kpi-rate">${pct(tIview,tInt)} of interested</div></div>
-    <div class="kpi-card teal"><div class="kpi-label">Insightful</div><div class="kpi-value">${tInsg}</div><div class="kpi-rate">${pct(tInsg,tIview)} insight rate</div></div>
-    <div class="kpi-card red"><div class="kpi-label">Not Connected</div><div class="kpi-value">${(tLeads-tConn).toLocaleString()}</div><div class="kpi-sub">${pct(tLeads-tConn,tLeads)} no answer</div></div>
+// ══════════════════════════════════════════════════════
+// RENDER FUNCTIONS
+// ══════════════════════════════════════════════════════
+function parseSchedDate(raw){
+  if(!raw)return null;
+  const s=raw.trim();
+  if(!s)return null;
+  // If datetime string like "2026-04-28 6:00 PM", extract just the date part
+  const dtSplit=s.match(/^(\d{4}-\d{2}-\d{2})\s/);
+  if(dtSplit)return dtSplit[1];
+  // If formatted datetime like "4/28/2026 6:00:00 PM", extract date part
+  const fmtDt=s.match(/^(\d{1,2}\/\d{1,2}\/\d{4})\s/);
+  if(fmtDt){const d=pd(fmtDt[1]);if(d&&d>='2020-01-01')return d;}
+  // Try standard ISO / M-D-YYYY paths via pd()
+  const d=pd(s);
+  if(d&&d>='2020-01-01')return d;
+  // Handle short formats like "Apr 28" or "28 Apr" — assume current year first, then next
+  if(/^[A-Za-z]/.test(s)||/\s[A-Za-z]/.test(s)){
+    const yr=new Date().getFullYear();
+    for(const y of[yr,yr+1]){
+      const attempt=new Date(`${s} ${y}`);
+      if(!isNaN(attempt)){const iso=attempt.toISOString().slice(0,10);if(iso>='2020-01-01')return iso;}
+    }
+  }
+  return null;
+}
+
+function parseSchedTime(raw){
+  if(!raw)return'—';
+  const s=raw.trim();
+  if(!s)return'—';
+  // Datetime string "2026-04-28 6:00 PM" → extract time part
+  const dtTime=s.match(/\d{4}-\d{2}-\d{2}\s+(.+)/);
+  if(dtTime)return dtTime[1];
+  // Formatted datetime "4/28/2026 6:00:00 PM" → extract time part
+  const fmtTime=s.match(/\d{1,2}\/\d{1,2}\/\d{4}\s+(.+)/);
+  if(fmtTime)return fmtTime[1];
+  // Already a pure time like "6:00 PM" or "18:00:00"
+  if(/^\d{1,2}:\d{2}/.test(s))return s;
+  return'—';
+}
+
+function fmtSchedDate(raw){
+  const iso=parseSchedDate(raw);
+  if(!iso)return'<span style="color:var(--muted)">—</span>';
+  const d=new Date(iso+'T00:00:00');
+  return d.toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+}
+
+function renderSchedule(){
+  const td=today();
+  const todayRows=SCHED.filter(r=>parseSchedDate(r['Interview Date']||'')===td);
+  const rows=todayRows.length?todayRows:SCHED;
+  const lbl=todayRows.length
+    ?todayRows.length+' interview(s) today'
+    :'Showing all scheduled (none today)';
+  document.getElementById('todayLabel').textContent=lbl;
+
+  if(!rows.length){
+    document.getElementById('scheduleTbody').innerHTML=`<tr><td colspan="11" class="placeholder-row">No interviews scheduled yet</td></tr>`;
+    return;
+  }
+  document.getElementById('scheduleTbody').innerHTML=rows.map(r=>{
+    const st=(r['Status']||'').toLowerCase();
+    const stCls=st.includes('done')||st.includes('complet')?'status-done':st.includes('cancel')?'status-cancel':'status-up';
+    const addr=(r['Address (if in-person)']||'').slice(0,45)||'—';
+    return `<tr>
+      <td><strong>${fmtSchedDate(r['Interview Date']||'')}</strong></td>
+      <td>${parseSchedTime(r['Interview Time']||'')}</td>
+      <td>${r['Mode of Interview']||'—'}</td>
+      <td>${r['Cohort']||'—'}</td>
+      <td>${r['Customer ID']||'—'}</td>
+      <td>${r['Customer Phone Number']||'—'}</td>
+      <td>${r['Monthly Grocery Budget']||'—'}</td>
+      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r['Address (if in-person)']||''}">${addr}</td>
+      <td>${r['Intern to join']||'—'}</td>
+      <td>${r['Team member to join']||'—'}</td>
+      <td><span class="bdg ${stCls}">${r['Status']||'Upcoming'}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderFunnel(f,secondCalls,firstCalls){
+  const max=f.called||1;
+  const stages=[
+    {lbl:'Called',n:f.called,color:'#1d4ed8'},
+    {lbl:'Connected',n:f.connected,color:'#15803d'},
+    {lbl:'Interested',n:f.interested,color:'#b45309'},
+    {lbl:'Interviewed',n:f.interviewed,color:'#7c3aed'},
+    {lbl:'Insightful',n:f.insightful,color:'#0f766e'},
+  ];
+  document.getElementById('funnelViz').innerHTML=stages.map((s,i)=>{
+    const w=Math.max((s.n/max)*100,1);
+    const prev=i===0?null:stages[i-1].n;
+    const meta=i===0?`${firstCalls} 1st calls · ${secondCalls} 2nd calls`:`${pct(s.n,prev)} of previous`;
+    return `<div class="fn-row">
+      <div class="fn-lbl">${s.lbl}</div>
+      <div class="fn-wrap"><div class="fn-bar" style="width:${w}%;background:${s.color}">${s.n>=50?s.n.toLocaleString():''}</div></div>
+      <div class="fn-n">${s.n<50?s.n:''}</div>
+      <div class="fn-meta">${meta}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('callNote').innerHTML=`
+    <span class="call-badge" style="background:var(--blue-l);color:var(--blue)">📞 ${firstCalls} first calls</span>
+    <span class="call-badge" style="background:var(--amber-l);color:var(--amber)">🔁 ${secondCalls} follow-up calls</span>
+    <span class="call-badge" style="background:#f1f5f9;color:var(--muted)">${f.called} distinct customers</span>
   `;
 }
 
-function renderFunnel(agg) {
-  const { tLeads, tConn, tInt, tIview, tInsg } = agg;
-  const stages = [
-    { label:'Leads',      count:tLeads, color:'#1a56db' },
-    { label:'Connected',  count:tConn,  color:'#057a55' },
-    { label:'Interested', count:tInt,   color:'#c27803' },
-    { label:'Interviews', count:tIview, color:'#6c2bd9' },
-    { label:'Insightful', count:tInsg,  color:'#0694a2' },
-  ];
-  const max = stages[0].count || 1;
-  document.getElementById('funnelViz').innerHTML = stages.map((s, i) => {
-    const w = Math.max((s.count / max) * 100, 1);
-    const prev = i === 0 ? null : stages[i-1].count;
-    const sub = i === 0 ? '100% of leads' : `${pct(s.count, prev)} of previous`;
-    return `<div class="funnel-row">
-      <div class="funnel-label">${s.label}</div>
-      <div class="funnel-bar-wrap"><div class="funnel-bar" style="width:${w}%;background:${s.color};">${s.count >= 50 ? s.count.toLocaleString() : ''}</div></div>
-      <div class="funnel-count">${s.count < 50 ? s.count : ''}</div>
-      <div class="funnel-pct">${sub}</div>
+function renderKPIs(f){
+  document.getElementById('kpiRow').innerHTML=`
+    <div class="kpi g"><div class="kpi-lbl">Connected</div><div class="kpi-val">${f.connected}</div><div class="kpi-rate">${pct(f.connected,f.called)}</div></div>
+    <div class="kpi a"><div class="kpi-lbl">Interested</div><div class="kpi-val">${f.interested}</div><div class="kpi-rate">${pct(f.interested,f.connected)} of connected</div></div>
+    <div class="kpi p"><div class="kpi-lbl">Interviews</div><div class="kpi-val">${f.interviewed}</div><div class="kpi-rate">${pct(f.interviewed,f.interested)} of interested</div></div>
+    <div class="kpi t"><div class="kpi-lbl">Insightful</div><div class="kpi-val">${f.insightful}</div><div class="kpi-rate">${pct(f.insightful,f.interviewed)} insight rate</div></div>
+  `;
+}
+
+function renderCallerBtns(callers){
+  const names=Object.keys(callers);
+  // Funnel-level caller filter
+  document.getElementById('callerBtns').innerHTML=
+    `<button class="caller-btn all ${ACTIVE_CALLER==='all'?'active':''}" onclick="setCaller('all','callerBtns')">All</button>`+
+    names.map(n=>`<button class="caller-btn ${ACTIVE_CALLER===n?'active':''}" onclick="setCaller('${n}','callerBtns')">${n}</button>`).join('');
+  // Timeline caller filter
+  document.getElementById('timelineCallerBtns').innerHTML=
+    `<button class="caller-btn all ${TIMELINE_CALLER==='all'?'active':''}" onclick="setCaller('all','timelineCallerBtns')">All</button>`+
+    names.map(n=>`<button class="caller-btn ${TIMELINE_CALLER===n?'active':''}" onclick="setCaller('${n}','timelineCallerBtns')">${n}</button>`).join('');
+}
+
+function setCaller(name,groupId){
+  if(groupId==='timelineCallerBtns'){
+    TIMELINE_CALLER=name;
+    document.querySelectorAll('#timelineCallerBtns .caller-btn').forEach(b=>{
+      b.classList.toggle('active',(name==='all'&&b.classList.contains('all'))||b.textContent===name);
+    });
+    renderTimeline(aggData.byDatePoc);
+  } else {
+    ACTIVE_CALLER=name;
+    document.querySelectorAll('#callerBtns .caller-btn').forEach(b=>{
+      b.classList.toggle('active',(name==='all'&&b.classList.contains('all'))||b.textContent===name);
+    });
+    applyFilter();
+  }
+}
+
+function renderCallerTable(callers){
+  document.getElementById('callerTbody').innerHTML=Object.keys(callers).map(poc=>{
+    const r=callers[poc];
+    const total=r.first+r.second;
+    return `<tr>
+      <td><strong>${poc}</strong></td>
+      <td>${r.first}</td>
+      <td>${r.second>0?`<span class="bdg bdg-a">${r.second}</span>`:0}</td>
+      <td>${total}</td>
+      <td>${r.conn}</td>
+      <td>${rateBdg(pct(r.conn,total))}</td>
+      <td>${r.int}</td>
+      <td>${rateBdg(pct(r.int,r.conn))}</td>
+      <td><span class="bdg bdg-p">${r.iview}</span></td>
+      <td><span class="bdg bdg-g">${r.insg}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderCallerCohort(callers,cohorts){
+  const cohortNames=Object.keys(cohorts);
+  const callerNames=Object.keys(callers);
+  document.getElementById('callerCohortHead').innerHTML=
+    '<th>Caller</th>'+cohortNames.map(c=>`<th>${c.length>18?c.slice(0,18)+'…':c}</th>`).join('');
+
+  // Build per-caller-per-cohort counts from filtered records
+  const matrix={};
+  for(const poc of callerNames){
+    matrix[poc]={};
+    for(const coh of cohortNames) matrix[poc][coh]={calls:0,conn:0};
+  }
+  for(const r of FILTERED){
+    if(matrix[r.poc]&&matrix[r.poc][r.cohort]!==undefined){
+      matrix[r.poc][r.cohort].calls++;
+      if(r.conn==='Yes')matrix[r.poc][r.cohort].conn++;
+    }
+  }
+  document.getElementById('callerCohortBody').innerHTML=callerNames.map(poc=>`<tr>
+    <td><strong>${poc}</strong></td>
+    ${cohortNames.map(coh=>{
+      const d=matrix[poc]?.[coh]||{calls:0,conn:0};
+      return `<td>${d.calls>0?`${d.calls} <span style="color:var(--muted);">(${pct(d.conn,d.calls)} conn)</span>`:'-'}</td>`;
+    }).join('')}
+  </tr>`).join('');
+}
+
+function renderCohortCharts(cohorts){
+  const labels=Object.keys(cohorts);
+  const short=labels.map(l=>l.length>22?l.slice(0,22)+'…':l);
+  dc('cohortLeadsChart');
+  CHARTS.cohortLeadsChart=new Chart(document.getElementById('cohortLeadsChart'),{
+    type:'bar',data:{labels:short,datasets:[{label:'Called',data:labels.map(l=>cohorts[l].called),backgroundColor:PAL.map(c=>c+'99'),borderColor:PAL,borderWidth:1.5}]},
+    options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:10}}},y:{ticks:{font:{size:10}}}}}
+  });
+  dc('cohortRateChart');
+  CHARTS.cohortRateChart=new Chart(document.getElementById('cohortRateChart'),{
+    type:'bar',data:{labels:short,datasets:[
+      {label:'Connect %',data:labels.map(l=>cohorts[l].called>0?+((cohorts[l].conn/cohorts[l].called)*100).toFixed(1):0),backgroundColor:'rgba(21,128,61,.7)',borderColor:'#15803d',borderWidth:1.5},
+      {label:'Interest %',data:labels.map(l=>cohorts[l].conn>0?+((cohorts[l].int/cohorts[l].conn)*100).toFixed(1):0),backgroundColor:'rgba(180,83,9,.7)',borderColor:'#b45309',borderWidth:1.5},
+    ]},
+    options:{indexAxis:'y',responsive:true,plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}}},scales:{x:{max:110,ticks:{font:{size:10},callback:v=>v+'%'}},y:{ticks:{font:{size:10}}}}}
+  });
+
+  document.getElementById('cohortTbody').innerHTML=labels.map(l=>{
+    const r=cohorts[l];
+    return `<tr><td><strong>${l}</strong></td><td>${r.called}</td><td>${r.conn}</td><td>${rateBdg(pct(r.conn,r.called))}</td><td>${r.int}</td><td>${rateBdg(pct(r.int,r.conn))}</td><td>${r.iview}</td><td>${rateBdg(pct(r.iview,r.int))}</td></tr>`;
+  }).join('');
+}
+
+function renderTargets(){
+  const sel=document.getElementById('weekSelect');
+  const weeks=generateWeeks();
+  // Populate selector if empty
+  if(sel.options.length===0){
+    weeks.forEach((w,i)=>{
+      const opt=document.createElement('option');
+      opt.value=i; opt.textContent=w.label;
+      sel.appendChild(opt);
+    });
+    sel.value=String(weeks.length-1); // default to current week
+  }
+  const wi=weeks[+sel.value]||weeks[weeks.length-1];
+  const comp=getWeekCompletions(wi.start,wi.end);
+  const allNames=[...new Set([...Object.keys(TARGETS.ip),...Object.keys(TARGETS.vt)])].sort();
+  document.getElementById('targetGrid').innerHTML=allNames.map(name=>{
+    const ipT=TARGETS.ip[name]||0, vtT=TARGETS.vt[name]||0;
+    const ipW=(comp[name]||{}).ip||0, vtW=(comp[name]||{}).vt||0;
+    const ipPct=ipT>0?Math.min(100,(ipW/ipT)*100):0;
+    const vtPct=vtT>0?Math.min(100,(vtW/vtT)*100):0;
+    const col=(p)=>p>=100?'var(--green)':p>=50?'var(--amber)':'var(--blue)';
+    const totalW=ipW+vtW, totalT=ipT+vtT;
+    const allDone=totalT>0&&totalW>=totalT;
+    return `<div class="target-card" style="${allDone?'border:2px solid var(--green);':''}">
+      <div class="tc-name">${name} ${allDone?'✅':''}</div>
+      ${ipT>0?`
+      <div class="tc-row"><span class="tc-lbl">In-Person</span><span class="tc-val" style="color:${col(ipPct)};font-size:13px;font-weight:800">${ipW}<span style="font-size:10px;font-weight:400;color:var(--muted)"> / ${ipT}</span></span></div>
+      <div class="tc-prog"><div class="prog-wrap" style="width:100%"><div class="prog-fill" style="width:${ipPct}%;background:${col(ipPct)}"></div></div></div>`:'<div style="font-size:10px;color:var(--muted);margin-bottom:4px">No in-person target</div>'}
+      ${vtT>0?`
+      <div class="tc-row" style="margin-top:8px"><span class="tc-lbl">Virtual</span><span class="tc-val" style="color:${col(vtPct)};font-size:13px;font-weight:800">${vtW}<span style="font-size:10px;font-weight:400;color:var(--muted)"> / ${vtT}</span></span></div>
+      <div class="tc-prog"><div class="prog-wrap" style="width:100%"><div class="prog-fill" style="width:${vtPct}%;background:${col(vtPct)}"></div></div></div>`:''}
     </div>`;
   }).join('');
 }
 
-function renderCallerCharts(callers) {
-  const labels = Object.keys(callers);
-  const d = callers;
-
-  mkBar('callerChart', labels, [
-    { label:'Leads',     data: labels.map(l=>d[l].leads),     backgroundColor:'rgba(26,86,219,.2)',  borderColor:'#1a56db', borderWidth:1.5 },
-    { label:'Connected', data: labels.map(l=>d[l].connected), backgroundColor:'rgba(5,122,85,.7)',   borderColor:'#057a55', borderWidth:1.5 },
-    { label:'Interested',data: labels.map(l=>d[l].interested),backgroundColor:'rgba(194,120,3,.7)',  borderColor:'#c27803', borderWidth:1.5 },
-  ]);
-
-  mkBar('callerRateChart', labels, [
-    { label:'Connect %',  data: labels.map(l=>d[l].leads>0?+((d[l].connected/d[l].leads)*100).toFixed(1):0),   backgroundColor:'rgba(5,122,85,.7)',  borderColor:'#057a55', borderWidth:1.5 },
-    { label:'Interest %', data: labels.map(l=>d[l].connected>0?+((d[l].interested/d[l].connected)*100).toFixed(1):0), backgroundColor:'rgba(194,120,3,.7)', borderColor:'#c27803', borderWidth:1.5 },
-    { label:'Interview %',data: labels.map(l=>d[l].interested>0?+((d[l].interviews/d[l].interested)*100).toFixed(1):0),backgroundColor:'rgba(108,43,217,.7)',borderColor:'#6c2bd9', borderWidth:1.5 },
-  ], { pct: true, max: 105 });
-
-  document.getElementById('callerTableBody').innerHTML = labels.map(l => {
-    const r = d[l];
-    return `<tr>
-      <td><strong>${l}</strong></td>
-      <td>${r.leads.toLocaleString()}</td>
-      <td>${r.connected}</td>
-      <td>${rateBadge(pct(r.connected,r.leads))}</td>
-      <td>${r.interested}</td>
-      <td>${rateBadge(pct(r.interested,r.connected))}</td>
-      <td><span class="badge badge-purple">${r.interviews}</span></td>
-      <td><span class="badge badge-green">${r.insightful}</span></td>
-    </tr>`;
-  }).join('');
-}
-
-function renderCohortCharts(cohorts) {
-  const labels = Object.keys(cohorts);
-  const short  = labels.map(l => l.length > 24 ? l.slice(0,24)+'…' : l);
-  const d = cohorts;
-
-  dc('cohortLeadsChart');
-  CHARTS.cohortLeadsChart = new Chart(document.getElementById('cohortLeadsChart'), {
-    type: 'bar',
-    data: { labels: short, datasets: [{ label:'Leads', data: labels.map(l=>d[l].leads), backgroundColor: PALETTE.map(c=>c+'99'), borderColor: PALETTE, borderWidth: 1.5 }] },
-    options: { indexAxis:'y', responsive:true, plugins:{legend:{display:false}}, scales:{x:{ticks:{font:{size:10}}},y:{ticks:{font:{size:10}}}} }
+function renderIxCharts(ixers,modes){
+  const labels=Object.keys(ixers).sort((a,b)=>ixers[b].total-ixers[a].total);
+  dc('ixChart');
+  CHARTS.ixChart=new Chart(document.getElementById('ixChart'),{
+    type:'bar',data:{labels,datasets:[
+      {label:'Total',data:labels.map(l=>ixers[l].total),backgroundColor:'rgba(29,78,216,.6)',borderColor:'#1d4ed8',borderWidth:1.5},
+      {label:'Insightful',data:labels.map(l=>ixers[l].insg),backgroundColor:'rgba(21,128,61,.8)',borderColor:'#15803d',borderWidth:1.5},
+    ]},options:{responsive:true,plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}}},scales:{x:{ticks:{font:{size:10}}},y:{ticks:{font:{size:10}}}}}
   });
-
-  dc('cohortRateChart');
-  CHARTS.cohortRateChart = new Chart(document.getElementById('cohortRateChart'), {
-    type: 'bar',
-    data: { labels: short, datasets: [
-      { label:'Connect %', data: labels.map(l=>d[l].leads>0?+((d[l].connected/d[l].leads)*100).toFixed(1):0), backgroundColor:'rgba(5,122,85,.7)', borderColor:'#057a55', borderWidth:1.5 },
-      { label:'Interest %',data: labels.map(l=>d[l].connected>0?+((d[l].interested/d[l].connected)*100).toFixed(1):0), backgroundColor:'rgba(194,120,3,.7)', borderColor:'#c27803', borderWidth:1.5 },
-    ]},
-    options: { indexAxis:'y', responsive:true, plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:12}}}, scales:{x:{max:110,ticks:{font:{size:10},callback:v=>v+'%'}},y:{ticks:{font:{size:10}}}} }
-  });
-
-  document.getElementById('cohortTableBody').innerHTML = labels.map(l => {
-    const r = d[l];
-    return `<tr>
-      <td><strong>${l}</strong></td>
-      <td>${r.leads.toLocaleString()}</td>
-      <td>${r.connected}</td>
-      <td>${rateBadge(pct(r.connected,r.leads))}</td>
-      <td>${r.interested}</td>
-      <td>${rateBadge(pct(r.interested,r.connected))}</td>
-      <td>${r.interviews}</td>
-      <td>${rateBadge(pct(r.interviews,r.interested))}</td>
-    </tr>`;
-  }).join('');
-}
-
-function renderInterviewCharts(ixers, modes) {
-  const labels = Object.keys(ixers).sort((a,b) => ixers[b].interviews - ixers[a].interviews);
-  const d = ixers;
-
-  mkBar('interviewerChart', labels, [
-    { label:'Interviews', data: labels.map(l=>d[l].interviews), backgroundColor:'rgba(26,86,219,.6)', borderColor:'#1a56db', borderWidth:1.5 },
-    { label:'Insightful', data: labels.map(l=>d[l].insightful), backgroundColor:'rgba(5,122,85,.8)',  borderColor:'#057a55', borderWidth:1.5 },
-  ]);
-
-  mkBar('insightRateChart', labels, [{
-    label:'Insight Rate %',
-    data: labels.map(l => d[l].interviews > 0 ? +((d[l].insightful/d[l].interviews)*100).toFixed(1) : 0),
-    backgroundColor: labels.map(l => {
-      const r = d[l].interviews > 0 ? (d[l].insightful/d[l].interviews)*100 : 0;
-      return r >= 70 ? 'rgba(5,122,85,.8)' : r >= 40 ? 'rgba(194,120,3,.8)' : 'rgba(200,30,30,.8)';
-    }),
-    borderWidth: 1.5,
-  }], { pct: true, max: 110 });
-
   dc('modeChart');
-  const mLabels = Object.keys(modes);
-  CHARTS.modeChart = new Chart(document.getElementById('modeChart'), {
-    type: 'doughnut',
-    data: { labels: mLabels, datasets: [{ data: mLabels.map(l=>modes[l]), backgroundColor:['#1a56db','#057a55','#c27803'], borderWidth:2 }] },
-    options: { responsive:false, cutout:'60%', plugins:{legend:{position:'bottom',labels:{font:{size:11}}}} }
+  const mLabels=Object.keys(modes);
+  CHARTS.modeChart=new Chart(document.getElementById('modeChart'),{
+    type:'doughnut',data:{labels:mLabels,datasets:[{data:mLabels.map(l=>modes[l]),backgroundColor:['#1d4ed8','#15803d','#b45309'],borderWidth:2}]},
+    options:{responsive:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{font:{size:10}}}}}
   });
 
-  document.getElementById('interviewerTableBody').innerHTML = labels.map(l => {
-    const r = d[l];
-    const rate = pct(r.insightful, r.interviews);
-    const w = r.interviews > 0 ? (r.insightful/r.interviews*100).toFixed(0) : 0;
-    const col = parseFloat(rate) >= 70 ? '#057a55' : parseFloat(rate) >= 40 ? '#c27803' : '#c81e1e';
+  document.getElementById('ixTbody').innerHTML=Object.keys(ixers).sort((a,b)=>ixers[b].total-ixers[a].total).map(name=>{
+    const r=ixers[name], ipT=TARGETS.ip[name]||0, vtT=TARGETS.vt[name]||0;
+    const insgRate=pct(r.insg,r.total);
     return `<tr>
-      <td><strong>${l}</strong></td>
-      <td>${r.interviews}</td>
-      <td>${r.insightful}</td>
-      <td>${rateBadge(rate)}</td>
-      <td><div class="progress-wrap"><div class="progress-fill" style="width:${w}%;background:${col};"></div></div></td>
+      <td><strong>${name}</strong></td>
+      <td>${r.ip}</td><td>${ipT}</td><td>${rateBdg(pct(r.ipThis,ipT))}</td>
+      <td>${r.vt}</td><td>${vtT}</td><td>${rateBdg(pct(r.vtThis,vtT))}</td>
+      <td><span class="bdg bdg-b">${r.total}</span></td>
+      <td><span class="bdg bdg-g">${r.insg}</span></td>
+      <td>${rateBdg(insgRate)}</td>
     </tr>`;
   }).join('');
 }
 
-function renderTimeline(byDatePoc, callerFilter) {
+function renderTimeline(byDatePoc){
   dc('timelineChart');
-  const allDates   = [...new Set(Object.keys(byDatePoc).map(k => k.split('|')[0]))].sort();
-  const allCallers = [...new Set(Object.keys(byDatePoc).map(k => k.split('|')[1]))].sort();
-  const colors     = ['#1a56db','#057a55','#c27803','#6c2bd9','#0694a2','#c81e1e'];
-
-  const filtered = callerFilter === 'all' ? allCallers : allCallers.filter(c => c === callerFilter);
-
-  const datasets = filtered.map((c, i) => ({
-    label: c,
-    data: allDates.map(d => byDatePoc[`${d}|${c}`] || 0),
-    backgroundColor: colors[i % colors.length] + 'cc',
-    borderColor: colors[i % colors.length],
-    borderWidth: 1, stack: 'stack'
+  const dates=[...new Set(Object.keys(byDatePoc).map(k=>k.split('|')[0]))].sort();
+  const allPocs=[...new Set(Object.keys(byDatePoc).map(k=>k.split('|')[1]))].sort();
+  const pocs=TIMELINE_CALLER==='all'?allPocs:[TIMELINE_CALLER];
+  const datasets=pocs.map((p,i)=>({
+    label:p,data:dates.map(d=>byDatePoc[`${d}|${p}`]||0),
+    backgroundColor:PAL[i%PAL.length]+'cc',borderColor:PAL[i%PAL.length],borderWidth:1,stack:'s'
   }));
-
-  CHARTS.timelineChart = new Chart(document.getElementById('timelineChart'), {
-    type: 'bar',
-    data: { labels: allDates.map(d => d.slice(5)), datasets },
-    options: {
-      responsive: true,
-      scales: {
-        x: { stacked:true, ticks:{ font:{size:10}, maxRotation:45 } },
-        y: { stacked:true, ticks:{ font:{size:10} } }
-      },
-      plugins: { legend: { position:'top', labels:{ font:{size:11}, boxWidth:12 } } }
-    }
+  CHARTS.timelineChart=new Chart(document.getElementById('timelineChart'),{
+    type:'bar',data:{labels:dates.map(d=>d.slice(5)),datasets},
+    options:{responsive:true,scales:{x:{stacked:true,ticks:{font:{size:10},maxRotation:45}},y:{stacked:true,ticks:{font:{size:10}}}},plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}}}}
   });
 }
 
-// ─── FILTER ──────────────────────────────────────────────────────────────────
-function applyFilter() {
-  const cohortF = document.getElementById('filterCohort').value;
-  const callerF = document.getElementById('filterCaller').value;
+function renderLog(records){
+  const allInterviewed=records.filter(r=>r.iview==='Yes');
 
-  FILTERED_RECORDS = ALL_RECORDS.filter(r =>
-    (cohortF === 'all' || r.cohort === cohortF) &&
-    (callerF === 'all' || r.poc_name === callerF)
-  );
+  // Populate log filter dropdowns
+  const cohortSel=document.getElementById('logCohort');
+  const ixSel=document.getElementById('logInterviewer');
+  const prevC=cohortSel.value, prevI=ixSel.value;
+  const cohortSet=[...new Set(allInterviewed.map(r=>r.cohort))].sort();
+  const ixSet=[...new Set(allInterviewed.flatMap(r=>r.taken_by?r.taken_by.split(/[,\/]/).map(x=>x.trim()).filter(Boolean):[]))].sort();
+  cohortSel.innerHTML='<option value="all">All Cohorts</option>'+cohortSet.map(c=>`<option value="${c}"${c===prevC?' selected':''}>${c}</option>`).join('');
+  ixSel.innerHTML='<option value="all">All Interviewers</option>'+ixSet.map(x=>`<option value="${x}"${x===prevI?' selected':''}>${x}</option>`).join('');
 
-  const agg = aggregate(FILTERED_RECORDS);
-  renderKPIs(agg);
-  renderFunnel(agg);
-  renderCallerCharts(agg.callers);
-  renderCohortCharts(agg.cohorts);
-  renderInterviewCharts(agg.ixers, agg.modes);
-  renderTimeline(agg.byDatePoc, callerF);
+  applyLogFilter(allInterviewed);
 }
 
-// ─── FETCH & LOAD ────────────────────────────────────────────────────────────
-async function loadAllData() {
-  document.getElementById('loadingOverlay').style.display = 'flex';
-  document.getElementById('errorBox').style.display = 'none';
-  document.getElementById('mainPage').style.display = 'none';
+function applyLogFilter(allInterviewed){
+  if(!allInterviewed){
+    allInterviewed=FILTERED.filter(r=>r.iview==='Yes');
+  }
+  const cf=document.getElementById('logCohort').value;
+  const ix=document.getElementById('logInterviewer').value;
+  const rows=allInterviewed.filter(r=>{
+    const cohortOk=cf==='all'||r.cohort===cf;
+    const ixOk=ix==='all'||(r.taken_by||'').split(/[,\/]/).map(x=>x.trim()).includes(ix);
+    return cohortOk&&ixOk;
+  });
+  if(!rows.length){
+    document.getElementById('logTbody').innerHTML=`<tr><td colspan="7" class="placeholder-row">No interviews match the selected filters</td></tr>`;
+    return;
+  }
+  document.getElementById('logTbody').innerHTML=rows.map(r=>{
+    const link=r.report?`<a class="link-btn" href="${r.report}" target="_blank">📄 Open</a>`:`<span style="color:var(--muted);font-size:10px">Link pending</span>`;
+    const cname=r.name?r.name:(r.cid||'—');
+    return `<tr>
+      <td><strong>${cname}</strong>${r.cid&&r.name?`<br><span style="color:var(--muted);font-size:10px">#${r.cid}</span>`:''}</td>
+      <td><span class="bdg bdg-gray">${r.cohort}</span></td>
+      <td>${r.calling_date||'—'}</td>
+      <td>${r.taken_by||'—'}</td>
+      <td>${r.mode||'—'}</td>
+      <td>${r.insg==='Yes'?'<span class="bdg bdg-g">✓ Yes</span>':'<span class="bdg bdg-gray">No</span>'}</td>
+      <td>${link}</td>
+    </tr>`;
+  }).join('');
+}
 
-  try {
-    const results = await Promise.all(
-      SHEET_CONFIGS.map(cfg =>
-        fetch(sheetUrl(cfg.sheetName))
-          .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); })
-          .then(text => parseCSV(text))
-          .then(rows => processSheet(rows, cfg))
-          .catch(err => { console.warn(`Sheet "${cfg.sheetName}" failed:`, err); return []; })
-      )
-    );
+// ══════════════════════════════════════════════════════
+// FILTER & RENDER ALL
+// ══════════════════════════════════════════════════════
+let aggData={};
 
-    ALL_RECORDS = results.flat();
+function applyFilter(){
+  const cf=document.getElementById('fCohort').value;
+  FILTERED=ALL.filter(r=>
+    (cf==='all'||r.cohort===cf)&&
+    (ACTIVE_CALLER==='all'||r.poc===ACTIVE_CALLER)
+  );
+  aggData=agg(FILTERED);
+  const {funnel,callers,cohorts,ixers,modes,byDatePoc,secondCalls,firstCalls}=aggData;
 
-    if (!ALL_RECORDS.length) throw new Error('No records loaded — sheet may not be public');
+  renderFunnel(funnel,secondCalls,firstCalls);
+  renderKPIs(funnel);
+  renderCallerTable(callers);
+  renderCallerCohort(callers,cohorts);
+  renderTimeline(byDatePoc);
+  renderTargets();
+  renderIxCharts(ixers,modes);
+  renderLog(FILTERED);
 
-    // Populate caller filter
-    const callers = [...new Set(ALL_RECORDS.map(r => r.poc_name).filter(Boolean))].sort();
-    const sel = document.getElementById('filterCaller');
-    sel.innerHTML = '<option value="all">All Callers</option>' +
-      callers.map(c => `<option value="${c}">${c}</option>`).join('');
+  // Show/hide cohort section
+  const showCohort=cf==='all';
+  document.getElementById('cohortSection').style.display=showCohort?'':'none';
+  document.getElementById('cohortCallerSection').style.display=showCohort?'':'none';
+  if(showCohort)renderCohortCharts(cohorts);
+}
 
-    document.getElementById('lastRefreshed').textContent =
-      '🕐 Updated ' + new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
-    document.getElementById('recordCount').textContent =
-      `📊 ${ALL_RECORDS.length.toLocaleString()} records · ${SHEET_CONFIGS.length} sheets`;
+// ══════════════════════════════════════════════════════
+// LOAD
+// ══════════════════════════════════════════════════════
+async function loadAll(){
+  document.getElementById('overlay').style.display='flex';
+  document.getElementById('errbox').style.display='none';
+  document.getElementById('mainPage').style.display='none';
+  try{
+    const[sheetResults,schedResult]=await Promise.all([
+      Promise.all(CFGS.map(cfg=>
+        fetchSheetGViz(cfg.sheetName)
+          .then(rows=>processSheet(rows,cfg))
+          .catch(e=>{console.warn(cfg.sheetName,e);return[];})
+      )),
+      fetchSheetGViz(SCHED_SHEET)
+        .then(rows=>processSched(rows))
+        .catch(()=>[])
+    ]);
 
-    // Reset filters and render
-    document.getElementById('filterCohort').value = 'all';
-    document.getElementById('filterCaller').value = 'all';
-    FILTERED_RECORDS = ALL_RECORDS;
-    const agg = aggregate(ALL_RECORDS);
-    renderKPIs(agg);
-    renderFunnel(agg);
-    renderCallerCharts(agg.callers);
-    renderCohortCharts(agg.cohorts);
-    renderInterviewCharts(agg.ixers, agg.modes);
-    renderTimeline(agg.byDatePoc, 'all');
+    ALL=sheetResults.flat();
+    SCHED=schedResult;
 
-    document.getElementById('loadingOverlay').style.display = 'none';
-    document.getElementById('mainPage').style.display = 'block';
+    if(!ALL.length)throw new Error('No records found. Check sheet sharing settings.');
 
-  } catch (err) {
-    document.getElementById('loadingOverlay').style.display = 'none';
-    document.getElementById('errorBox').style.display = 'block';
-    document.getElementById('errorDetail').textContent = err.message;
-    console.error(err);
+    // Populate caller filter buttons
+    const callers=[...new Set(ALL.map(r=>r.poc).filter(Boolean))].sort();
+    renderCallerBtns(Object.fromEntries(callers.map(c=>[c,{}])));
+
+    document.getElementById('chipDate').textContent='🕐 '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+    document.getElementById('chipCount').textContent=`📊 ${ALL.length.toLocaleString()} call records · ${SCHED.length} scheduled`;
+
+    document.getElementById('fCohort').value='all';
+    ACTIVE_CALLER='all'; TIMELINE_CALLER='all';
+    FILTERED=ALL;
+    renderSchedule();
+    aggData=agg(ALL);
+    const{funnel,callers:cal,cohorts,ixers,modes,byDatePoc,secondCalls,firstCalls}=aggData;
+    renderFunnel(funnel,secondCalls,firstCalls);
+    renderKPIs(funnel);
+    renderCallerTable(cal);
+    renderCallerCohort(cal,cohorts);
+    renderCohortCharts(cohorts);
+    renderTimeline(byDatePoc);
+    renderTargets(ixers);
+    renderIxCharts(ixers,modes);
+    renderLog(FILTERED);
+    document.getElementById('cohortSection').style.display='';
+    document.getElementById('cohortCallerSection').style.display='';
+
+    document.getElementById('overlay').style.display='none';
+    document.getElementById('mainPage').style.display='block';
+  }catch(e){
+    document.getElementById('overlay').style.display='none';
+    document.getElementById('errbox').style.display='block';
+    document.getElementById('errDetail').textContent=e.message;
+    console.error(e);
   }
 }
 
-// ─── INIT ────────────────────────────────────────────────────────────────────
-loadAllData();
+loadAll();
 </script>
 </body>
 </html>
