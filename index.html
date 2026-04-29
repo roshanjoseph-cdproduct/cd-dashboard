@@ -189,11 +189,12 @@ tbody tr:hover{background:#f8fafc}
 
   <!-- ── TODAY'S SCHEDULE ── -->
   <div class="sec-title">📅 Today's Interview Schedule <span id="todayLabel" class="today-badge"></span></div>
-  <div class="tbl-wrap">
-    <table>
+  <div class="tbl-wrap" style="overflow-x:auto">
+    <table style="min-width:1100px">
       <thead><tr>
         <th>Date</th><th>Time</th><th>Mode</th><th>Cohort</th><th>Customer ID</th><th>Phone</th>
-        <th>Budget</th><th>Address</th><th>Intern</th><th>Team Member</th><th>Status</th>
+        <th>Language</th><th>Family Size</th><th>Budget</th><th>Purchase Behaviour</th>
+        <th>Address</th><th>Intern</th><th>Team Member</th><th>Status</th>
       </tr></thead>
       <tbody id="scheduleTbody">
         <tr><td colspan="10" class="placeholder-row">No interviews scheduled for today</td></tr>
@@ -742,13 +743,13 @@ function renderSchedule(){
   document.getElementById('todayLabel').textContent=lbl;
 
   if(!rows.length){
-    document.getElementById('scheduleTbody').innerHTML=`<tr><td colspan="11" class="placeholder-row">No interviews scheduled yet</td></tr>`;
+    document.getElementById('scheduleTbody').innerHTML=`<tr><td colspan="14" class="placeholder-row">No interviews scheduled yet</td></tr>`;
     return;
   }
   document.getElementById('scheduleTbody').innerHTML=rows.map(r=>{
     const st=(r['Status']||'').toLowerCase();
     const stCls=st.includes('done')||st.includes('complet')?'status-done':st.includes('cancel')?'status-cancel':'status-up';
-    const addr=(r['Address (if in-person)']||'').slice(0,45)||'—';
+    const addr=(r['Address (if in-person)']||'').trim()||'—';
     return `<tr>
       <td><strong>${fmtSchedDate(r['Interview Date']||'')}</strong></td>
       <td>${parseSchedTime(r['Interview Time']||'')}</td>
@@ -756,8 +757,11 @@ function renderSchedule(){
       <td>${r['Cohort']||'—'}</td>
       <td>${r['Customer ID']||'—'}</td>
       <td>${r['Customer Phone Number']||'—'}</td>
+      <td>${r['Language']||'—'}</td>
+      <td>${r['Family Size']||'—'}</td>
       <td>${r['Monthly Grocery Budget']||'—'}</td>
-      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r['Address (if in-person)']||''}">${addr}</td>
+      <td>${r['Grocery Purchase Behaviour']||'—'}</td>
+      <td style="max-width:260px;white-space:normal;word-break:break-word;line-height:1.5;font-size:11px">${addr}</td>
       <td>${r['Intern to join']||'—'}</td>
       <td>${r['Team member to join']||'—'}</td>
       <td><span class="bdg ${stCls}">${r['Status']||'Upcoming'}</span></td>
