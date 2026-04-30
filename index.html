@@ -170,7 +170,9 @@ tbody tr:hover{background:#f8fafc}
   <select id="fCohort" onchange="applyFilter()">
     <option value="all">All Cohorts</option>
     <option value="Early Users - No CS">Early Users – No CS</option>
-    <option value="Elite Users">Elite Users</option>
+    <option value="Elite Users - 1K-2K (Taneesha)">Elite Users 1K-2K · Taneesha</option>
+    <option value="Elite Users - 2K-10K">Elite Users 2K-10K</option>
+    <option value="Elite Users - 10K+ (Sannidhi)">Elite Users 10K+ · Sannidhi</option>
     <option value="Dropped Off - Hyd">Dropped Off – Hyd</option>
     <option value="Review Cart → Not Placing Order">Review Cart → Not Placing</option>
     <option value="Placing Order → Not Taking OT">Placing Order → Not Taking OT</option>
@@ -238,9 +240,9 @@ tbody tr:hover{background:#f8fafc}
   <div class="tbl-wrap" style="margin-bottom:14px">
     <table>
       <thead><tr>
-        <th>Caller</th><th>1st Calls</th><th>2nd Calls</th><th>Total Attempts</th>
+        <th>Caller</th><th>1st Attempts</th><th>Follow-up Calls</th><th>Total Attempted</th>
         <th>Connected</th><th>Connect %</th><th>Interested</th><th>Interest %</th>
-        <th>Interviews</th><th>Insightful</th>
+        <th>Interviews</th><th>Insightful</th><th>Not Dialled Yet</th>
       </tr></thead>
       <tbody id="callerTbody"></tbody>
     </table>
@@ -343,42 +345,87 @@ tbody tr:hover{background:#f8fafc}
 const SHEET_ID = '1RtHEVkSdMpBvtE7tFqE_lsJdIe_u-V9N3z3bflcZO6A';
 const SCHED_SHEET = 'Interviews Scheduled';
 
+// Column configs use header names instead of hardcoded indices.
+// String  → first occurrence of that header (case-insensitive, whitespace-normalised)
+// [name, N] → Nth occurrence (0-based) — needed when a sheet has duplicate header names
 const CFGS = [
   { sheetName:'Early Users With No CS', cohort:'Early Users - No CS',
-    custIdx:0, nameIdx:7, cityIdx:9,
-    pocIdx:12, dateIdx:14, connIdx:15, intIdx:16,
-    modeIdx:17, iviewIdx:18, insgIdx:19, takenIdx:20, reportIdx:26,
-    poc2Idx:null, date2Idx:null, conn2Idx:null, int2Idx:null },
+    cols:{
+      custId:'customer_id', name:'name', city:'area',
+      poc:'poc name', date:'calling1 date',
+      conn:'connected 1', int:'interested',
+      mode:'mode of interview', iview:'interview taken',
+      insg:'insightful', takenBy:'interview taken by',
+      report:'report & transcript link',
+    }},
 
-  { sheetName:'Elite Users', cohort:'Elite Users',
-    custIdx:1, nameIdx:6, cityIdx:17,
-    pocIdx:24, dateIdx:23, connIdx:26, intIdx:27,
-    poc2Idx:29, date2Idx:28, conn2Idx:31, int2Idx:32,
-    iviewIdx:33, insgIdx:34, takenIdx:35, modeIdx:38, reportIdx:null },
+  { sheetName:'Elite Users CS 1-2000 - For Taneesha', cohort:'Elite Users - 1K-2K (Taneesha)',
+    cols:{
+      custId:'customer id', name:'customer', city:'city',
+      poc:['poc name',0], date:'calling date',
+      conn:'connected', int:'interested',
+      poc2:['poc name',1], date2:'calling date 2',
+      conn2:'connected 2', int2:'interested 2',
+      iview:'joined', insg:'insightful',
+      takenBy:'interview taken by', mode:'mode of interview',
+    }},
+
+  { sheetName:'Elite Users CS 2000-10000', cohort:'Elite Users - 2K-10K',
+    cols:{
+      custId:'customer id', name:'customer', city:'city',
+      poc:['poc name',0], date:'calling date',
+      conn:'connected', int:'interested',
+      poc2:['poc name',1], date2:'calling date 2',
+      conn2:'connected 2', int2:'interested 2',
+      iview:'joined', insg:'insightful',
+      takenBy:'interview taken by', mode:'mode of interview',
+    }},
+
+  { sheetName:'Elite Users CS 10000+ - For Sannidhi', cohort:'Elite Users - 10K+ (Sannidhi)',
+    cols:{
+      custId:'customer id', name:'customer', city:'city',
+      poc:['poc name',0], date:'calling date',
+      conn:'connected', int:'interested',
+      poc2:['poc name',1], date2:'calling date 2',
+      conn2:'connected 2', int2:'interested 2',
+      iview:'joined', insg:'insightful',
+      takenBy:'interview taken by', mode:'mode of interview',
+    }},
 
   { sheetName:'Dropped Off Users - Hyd', cohort:'Dropped Off - Hyd',
-    custIdx:0, nameIdx:null, cityIdx:6,
-    pocIdx:16, dateIdx:15, connIdx:18, intIdx:19,
-    poc2Idx:null, date2Idx:null, conn2Idx:null, int2Idx:null,
-    iviewIdx:null, insgIdx:null, takenIdx:null, modeIdx:null, reportIdx:null },
+    cols:{
+      custId:'customer_id', city:'city',
+      poc:'poc name', date:'calling date',
+      conn:'connected', int:'interested',
+    }},
 
   { sheetName:' Review cart<> not placing orde', cohort:'Review Cart → Not Placing Order',
-    custIdx:0, nameIdx:null, cityIdx:17,
-    pocIdx:28, dateIdx:30, connIdx:31, intIdx:null,
-    poc2Idx:32, date2Idx:34, conn2Idx:35, int2Idx:36,
-    iviewIdx:null, insgIdx:null, takenIdx:null, modeIdx:38, reportIdx:null },
+    cols:{
+      custId:'customer_id', city:'city',
+      poc:['poc name',0], date:'calling date',
+      conn:'connected',
+      poc2:['poc name',1], date2:'calling date 2',
+      conn2:'connected 2', int2:'interested 2',
+      mode:'mode of interview',
+    }},
 
   { sheetName:' Placing order <> Not taking OT', cohort:'Placing Order → Not Taking OT',
-    custIdx:0, nameIdx:null, cityIdx:17,
-    pocIdx:29, dateIdx:30, connIdx:32, intIdx:null,
-    poc2Idx:33, date2Idx:34, conn2Idx:36, int2Idx:37,
-    iviewIdx:null, insgIdx:null, takenIdx:null, modeIdx:39, reportIdx:null },
+    cols:{
+      custId:'customer_id', city:'city',
+      poc:'poc name', date:'calling date',
+      conn:'connected',
+      poc2:'2nd calling poc name', date2:'2nd calling calling date',
+      conn2:'2nd calling connected', int2:'2nd calling interested',
+      mode:'mode of interview',
+    }},
 
   { sheetName:'OT order >= 500', cohort:'OT Order ≥ 500',
-    custIdx:0, nameIdx:null, cityIdx:17,
-    pocIdx:29, dateIdx:30, connIdx:32, intIdx:33,
-    poc2Idx:null, date2Idx:null, conn2Idx:null, int2Idx:null,
-    iviewIdx:null, insgIdx:null, takenIdx:null, modeIdx:35, reportIdx:null },
+    cols:{
+      custId:'customer_id', city:'city',
+      poc:'poc name', date:'calling date',
+      conn:'connected', int:'interested',
+      mode:'mode of interview',
+    }},
 ];
 
 const T_START = new Date('2026-04-27');
@@ -387,6 +434,15 @@ const TARGETS = {
   vt: { Roshan:0, Anant:0, Neha:0, Rudra:0, Varalakshmi:10, Deepika:10, Sannidhi:4, Taneesha:4 },
 };
 const PAL = ['#1d4ed8','#15803d','#b45309','#7c3aed','#0f766e','#b91c1c','#0369a1','#065f46'];
+
+// Cohort → intern ownership (used for badges and filter labels)
+const COHORT_OWNERS = {
+  'Elite Users - 1K-2K (Taneesha)': { owner:'Taneesha', color:'#7c3aed', bg:'#ede9fe' },
+  'Elite Users - 10K+ (Sannidhi)':  { owner:'Sannidhi',  color:'#0f766e', bg:'#ccfbf1' },
+};
+
+// Populated after SCHED loads — customer IDs that appear in Interviews Scheduled sheet
+let SCHEDULED_IDS = new Set();
 
 function generateWeeks(){
   const weeks=[]; const now=new Date();
@@ -542,36 +598,86 @@ function inCurrentWeek(dateStr){
 // ══════════════════════════════════════════════════════
 // DATA PROCESSING
 // ══════════════════════════════════════════════════════
+
+// Normalise a header string for comparison: lowercase, trim, collapse whitespace
+const norm = s => (s||'').toLowerCase().trim().replace(/\s+/g,' ');
+
 function processSheet(rows, cfg){
   if(rows.length<2)return[];
+
+  // Build header→[idx…] map from row 0 (handles duplicate column names)
+  const headers=rows[0];
+  const hMap={};
+  for(let i=0;i<headers.length;i++){
+    const n=norm(headers[i]);
+    if(!n)continue;
+    if(!hMap[n])hMap[n]=[];
+    hMap[n].push(i);
+  }
+
+  // Resolve a col ref: 'name' → first occurrence index; ['name',N] → Nth occurrence; -1 if absent
+  function res(ref){
+    if(ref===null||ref===undefined)return -1;
+    if(Array.isArray(ref)){
+      const idxs=hMap[norm(ref[0])];
+      return(idxs&&idxs[ref[1]]!==undefined)?idxs[ref[1]]:-1;
+    }
+    const idxs=hMap[norm(String(ref))];
+    return idxs?idxs[0]:-1;
+  }
+
+  const c=cfg.cols||{};
+  const custIdx  =res(c.custId);
+  const nameIdx  =res(c.name);
+  const cityIdx  =res(c.city);
+  const pocIdx   =res(c.poc);
+  const dateIdx  =res(c.date);
+  const connIdx  =res(c.conn);
+  const intIdx   =res(c.int);
+  const poc2Idx  =res(c.poc2);
+  const date2Idx =res(c.date2);
+  const conn2Idx =res(c.conn2);
+  const int2Idx  =res(c.int2);
+  const iviewIdx =res(c.iview);
+  const insgIdx  =res(c.insg);
+  const takenIdx =res(c.takenBy);
+  const modeIdx  =res(c.mode);
+  const reportIdx=res(c.report);
+
   const records=[];
   for(let i=1;i<rows.length;i++){
     const row=rows[i];
-    const cid=g(row,cfg.custIdx)||`r${i}`;
-    const poc1=g(row,cfg.pocIdx), date1=pd(g(row,cfg.dateIdx));
+    const cid=g(row,custIdx)||`r${i}`;
+    const poc1=g(row,pocIdx), date1=pd(g(row,dateIdx));
     if(poc1&&date1){
+      const conn1=yn(g(row,connIdx));
       records.push({
-        cid, cohort:cfg.cohort, city:g(row,cfg.cityIdx),
-        name:cfg.nameIdx!=null?g(row,cfg.nameIdx):'',
+        cid, cohort:cfg.cohort,
+        city:     cityIdx>=0?g(row,cityIdx):'',
+        name:     nameIdx>=0?g(row,nameIdx):'',
         calling_date:date1, poc:poc1, attempt:1,
-        conn:yn(g(row,cfg.connIdx)),
-        int:cfg.intIdx!=null?yn(g(row,cfg.intIdx)):null,
-        iview:cfg.iviewIdx!=null?yn(g(row,cfg.iviewIdx)):null,
-        insg:cfg.insgIdx!=null?yn(g(row,cfg.insgIdx)):null,
-        taken_by:cfg.takenIdx!=null?g(row,cfg.takenIdx):'',
-        mode:cfg.modeIdx!=null?g(row,cfg.modeIdx):'',
-        report:cfg.reportIdx!=null?g(row,cfg.reportIdx):'',
+        conn:     conn1,
+        attempted:conn1!==null,           // blank connected = not yet dialled
+        int:      intIdx>=0?yn(g(row,intIdx)):null,
+        iview:    iviewIdx>=0?yn(g(row,iviewIdx)):null,
+        insg:     insgIdx>=0?yn(g(row,insgIdx)):null,
+        taken_by: takenIdx>=0?g(row,takenIdx):'',
+        mode:     modeIdx>=0?g(row,modeIdx):'',
+        report:   reportIdx>=0?g(row,reportIdx):'',
       });
     }
-    if(cfg.poc2Idx!=null){
-      const poc2=g(row,cfg.poc2Idx), date2=pd(g(row,cfg.date2Idx));
+    if(poc2Idx>=0){
+      const poc2=g(row,poc2Idx), date2=pd(g(row,date2Idx));
       if(poc2&&date2){
+        const conn2=conn2Idx>=0?yn(g(row,conn2Idx)):null;
         records.push({
-          cid, cohort:cfg.cohort, city:g(row,cfg.cityIdx),
-          name:cfg.nameIdx!=null?g(row,cfg.nameIdx):'',
+          cid, cohort:cfg.cohort,
+          city:     cityIdx>=0?g(row,cityIdx):'',
+          name:     nameIdx>=0?g(row,nameIdx):'',
           calling_date:date2, poc:poc2, attempt:2,
-          conn:cfg.conn2Idx!=null?yn(g(row,cfg.conn2Idx)):null,
-          int:cfg.int2Idx!=null?yn(g(row,cfg.int2Idx)):null,
+          conn:     conn2,
+          attempted:conn2!==null,
+          int:      int2Idx>=0?yn(g(row,int2Idx)):null,
           iview:null, insg:null, taken_by:'', mode:'', report:'',
         });
       }
@@ -596,39 +702,58 @@ function processSched(rows){
 // AGGREGATION
 // ══════════════════════════════════════════════════════
 function agg(records){
-  // Customer-level map (for funnel)
+  // ── FUNNEL (customer-level, only where connected is explicitly Yes/No) ──
+  // Records with blank connected are assigned leads not yet dialled → excluded from funnel
   const cmap={};
   for(const r of records){
+    if(!r.attempted) continue; // blank connected = not yet attempted
     const k=r.cohort+'|'+r.cid;
-    if(!cmap[k])cmap[k]={cohort:r.cohort,poc:r.poc,conn:false,int:false,iview:false,insg:false};
+    if(!cmap[k])cmap[k]={cohort:r.cohort,poc:r.poc,conn:false,int:false,iview:false,insg:false,cid_raw:String(r.cid)};
     if(r.conn==='Yes')cmap[k].conn=true;
     if(r.int==='Yes')cmap[k].int=true;
     if(r.iview==='Yes')cmap[k].iview=true;
     if(r.insg==='Yes')cmap[k].insg=true;
   }
+  // Also sweep ALL records to catch interview data that may exist on rows
+  // with blank connected (edge case: interview taken before call was logged)
+  for(const r of records){
+    const k=r.cohort+'|'+r.cid;
+    if(!cmap[k]) continue; // never add new entries; only enrich existing ones
+    if(r.iview==='Yes') cmap[k].iview=true;
+    if(r.insg==='Yes') cmap[k].insg=true;
+  }
   const custs=Object.values(cmap);
+  // Pipeline gap: interested customers not yet appearing in the Interviews Scheduled sheet
+  const pipelineGap=custs.filter(c=>c.int&&!SCHEDULED_IDS.has(c.cid_raw)).length;
   const funnel={
-    called:custs.length,
-    connected:custs.filter(c=>c.conn).length,
-    interested:custs.filter(c=>c.int).length,
-    interviewed:custs.filter(c=>c.iview).length,
-    insightful:custs.filter(c=>c.insg).length,
+    attempted:   custs.length,
+    connected:   custs.filter(c=>c.conn).length,
+    interested:  custs.filter(c=>c.int).length,
+    interviewed: custs.filter(c=>c.iview).length,
+    insightful:  custs.filter(c=>c.insg).length,
+    pipelineGap,
   };
 
-  // Call-level (for callers)
+  // ── CALLER STATS (call-level, only attempted calls) ──
   const callers={}, cohorts={}, ixers={}, modes={}, byDatePoc={};
   for(const r of records){
-    // Callers (call-level)
     const poc=r.poc||'Unknown';
-    if(!callers[poc])callers[poc]={first:0,second:0,conn:0,int:0,iview:0,insg:0};
-    if(r.attempt===1)callers[poc].first++;else callers[poc].second++;
-    if(r.conn==='Yes')callers[poc].conn++;
-    if(r.int==='Yes')callers[poc].int++;
-    if(r.iview==='Yes')callers[poc].iview++;
-    if(r.insg==='Yes')callers[poc].insg++;
+    if(!callers[poc])callers[poc]={first:0,second:0,conn:0,int:0,iview:0,insg:0,notAttempted:0};
 
-    // Cohorts (customer-level via cmap)
-    // Interviewers
+    if(r.attempted){
+      // Count this as a real call attempt
+      if(r.attempt===1) callers[poc].first++;
+      else callers[poc].second++;
+      if(r.conn==='Yes') callers[poc].conn++;
+      if(r.int==='Yes')  callers[poc].int++;
+    } else {
+      // Has poc+date but connected is blank → assigned but not yet dialled
+      callers[poc].notAttempted++;
+    }
+    if(r.iview==='Yes') callers[poc].iview++;
+    if(r.insg==='Yes')  callers[poc].insg++;
+
+    // ── INTERVIEWERS ──
     if(r.iview==='Yes'&&r.taken_by){
       const ns=r.taken_by.split(/[,\/]/).map(x=>x.trim()).filter(Boolean);
       const mode=r.mode||'Not Specified';
@@ -638,21 +763,21 @@ function agg(records){
         ixers[n].total++;
         if(r.insg==='Yes')ixers[n].insg++;
         const isIP=(mode||'').toLowerCase().includes('person');
-        if(isIP)ixers[n].ip++;else ixers[n].vt++;
+        if(isIP)ixers[n].ip++; else ixers[n].vt++;
         if(inCurrentWeek(r.calling_date)){
-          if(isIP)ixers[n].ipThis++;else ixers[n].vtThis++;
+          if(isIP)ixers[n].ipThis++; else ixers[n].vtThis++;
         }
       }
     }
 
-    // Timeline
-    if(r.calling_date){
+    // ── TIMELINE (only attempted calls) ──
+    if(r.calling_date && r.attempted){
       const key=r.calling_date+'|'+poc;
       byDatePoc[key]=(byDatePoc[key]||0)+1;
     }
   }
 
-  // Cohorts from customer map
+  // ── COHORTS (customer-level from cmap) ──
   for(const c of custs){
     const coh=c.cohort;
     if(!cohorts[coh])cohorts[coh]={called:0,conn:0,int:0,iview:0};
@@ -662,10 +787,11 @@ function agg(records){
     if(c.iview)cohorts[coh].iview++;
   }
 
-  const secondCalls=records.filter(r=>r.attempt===2).length;
-  const firstCalls=records.filter(r=>r.attempt===1).length;
+  const secondCalls = records.filter(r=>r.attempt===2&&r.attempted).length;
+  const firstCalls  = records.filter(r=>r.attempt===1&&r.attempted).length;
+  const notAttempted= records.filter(r=>r.attempt===1&&!r.attempted).length;
 
-  return{funnel,callers,cohorts,ixers,modes,byDatePoc,secondCalls,firstCalls,total:records.length};
+  return{funnel,callers,cohorts,ixers,modes,byDatePoc,secondCalls,firstCalls,notAttempted,total:records.length};
 }
 
 // ══════════════════════════════════════════════════════
@@ -769,10 +895,10 @@ function renderSchedule(){
   }).join('');
 }
 
-function renderFunnel(f,secondCalls,firstCalls){
-  const max=f.called||1;
+function renderFunnel(f,secondCalls,firstCalls,notAttempted){
+  const max=f.attempted||1;
   const stages=[
-    {lbl:'Called',n:f.called,color:'#1d4ed8'},
+    {lbl:'Attempted',n:f.attempted,color:'#1d4ed8'},
     {lbl:'Connected',n:f.connected,color:'#15803d'},
     {lbl:'Interested',n:f.interested,color:'#b45309'},
     {lbl:'Interviewed',n:f.interviewed,color:'#7c3aed'},
@@ -781,7 +907,9 @@ function renderFunnel(f,secondCalls,firstCalls){
   document.getElementById('funnelViz').innerHTML=stages.map((s,i)=>{
     const w=Math.max((s.n/max)*100,1);
     const prev=i===0?null:stages[i-1].n;
-    const meta=i===0?`${firstCalls} 1st calls · ${secondCalls} 2nd calls`:`${pct(s.n,prev)} of previous`;
+    const meta=i===0
+      ?`${firstCalls} 1st · ${secondCalls} follow-up calls`
+      :`${pct(s.n,prev)} of previous`;
     return `<div class="fn-row">
       <div class="fn-lbl">${s.lbl}</div>
       <div class="fn-wrap"><div class="fn-bar" style="width:${w}%;background:${s.color}">${s.n>=50?s.n.toLocaleString():''}</div></div>
@@ -791,18 +919,19 @@ function renderFunnel(f,secondCalls,firstCalls){
   }).join('');
 
   document.getElementById('callNote').innerHTML=`
-    <span class="call-badge" style="background:var(--blue-l);color:var(--blue)">📞 ${firstCalls} first calls</span>
+    <span class="call-badge" style="background:var(--blue-l);color:var(--blue)">📞 ${firstCalls} 1st calls attempted</span>
     <span class="call-badge" style="background:var(--amber-l);color:var(--amber)">🔁 ${secondCalls} follow-up calls</span>
-    <span class="call-badge" style="background:#f1f5f9;color:var(--muted)">${f.called} distinct customers</span>
+    ${notAttempted>0?`<span class="call-badge" style="background:#f1f5f9;color:var(--muted)">⏳ ${notAttempted} assigned, not yet dialled</span>`:''}
   `;
 }
 
 function renderKPIs(f){
   document.getElementById('kpiRow').innerHTML=`
-    <div class="kpi g"><div class="kpi-lbl">Connected</div><div class="kpi-val">${f.connected}</div><div class="kpi-rate">${pct(f.connected,f.called)}</div></div>
+    <div class="kpi g"><div class="kpi-lbl">Connected</div><div class="kpi-val">${f.connected}</div><div class="kpi-rate">${pct(f.connected,f.attempted)} of attempted</div></div>
     <div class="kpi a"><div class="kpi-lbl">Interested</div><div class="kpi-val">${f.interested}</div><div class="kpi-rate">${pct(f.interested,f.connected)} of connected</div></div>
     <div class="kpi p"><div class="kpi-lbl">Interviews</div><div class="kpi-val">${f.interviewed}</div><div class="kpi-rate">${pct(f.interviewed,f.interested)} of interested</div></div>
     <div class="kpi t"><div class="kpi-lbl">Insightful</div><div class="kpi-val">${f.insightful}</div><div class="kpi-rate">${pct(f.insightful,f.interviewed)} insight rate</div></div>
+    <div class="kpi r"><div class="kpi-lbl">Interested, Not Scheduled</div><div class="kpi-val">${f.pipelineGap||0}</div><div class="kpi-sub" style="font-size:10px">Interested but not yet in interview schedule</div></div>
   `;
 }
 
@@ -837,18 +966,19 @@ function setCaller(name,groupId){
 function renderCallerTable(callers){
   document.getElementById('callerTbody').innerHTML=Object.keys(callers).map(poc=>{
     const r=callers[poc];
-    const total=r.first+r.second;
+    const total=r.first+r.second; // only attempted calls
     return `<tr>
       <td><strong>${poc}</strong></td>
       <td>${r.first}</td>
-      <td>${r.second>0?`<span class="bdg bdg-a">${r.second}</span>`:0}</td>
-      <td>${total}</td>
+      <td>${r.second>0?`<span class="bdg bdg-a">${r.second}</span>`:'0'}</td>
+      <td><strong>${total}</strong></td>
       <td>${r.conn}</td>
       <td>${rateBdg(pct(r.conn,total))}</td>
       <td>${r.int}</td>
       <td>${rateBdg(pct(r.int,r.conn))}</td>
       <td><span class="bdg bdg-p">${r.iview}</span></td>
       <td><span class="bdg bdg-g">${r.insg}</span></td>
+      <td>${r.notAttempted>0?`<span class="bdg bdg-gray">⏳ ${r.notAttempted}</span>`:'—'}</td>
     </tr>`;
   }).join('');
 }
@@ -899,7 +1029,14 @@ function renderCohortCharts(cohorts){
 
   document.getElementById('cohortTbody').innerHTML=labels.map(l=>{
     const r=cohorts[l];
-    return `<tr><td><strong>${l}</strong></td><td>${r.called}</td><td>${r.conn}</td><td>${rateBdg(pct(r.conn,r.called))}</td><td>${r.int}</td><td>${rateBdg(pct(r.int,r.conn))}</td><td>${r.iview}</td><td>${rateBdg(pct(r.iview,r.int))}</td></tr>`;
+    const own=COHORT_OWNERS[l];
+    const ownerTag=own?`<span class="bdg" style="background:${own.bg};color:${own.color};margin-left:6px">${own.owner}</span>`:'';
+    return `<tr>
+      <td><strong>${l}</strong>${ownerTag}</td>
+      <td>${r.called}</td><td>${r.conn}</td><td>${rateBdg(pct(r.conn,r.called))}</td>
+      <td>${r.int}</td><td>${rateBdg(pct(r.int,r.conn))}</td>
+      <td>${r.iview}</td><td>${rateBdg(pct(r.iview,r.int))}</td>
+    </tr>`;
   }).join('');
 }
 
@@ -1040,9 +1177,9 @@ function applyFilter(){
     (ACTIVE_CALLER==='all'||r.poc===ACTIVE_CALLER)
   );
   aggData=agg(FILTERED);
-  const {funnel,callers,cohorts,ixers,modes,byDatePoc,secondCalls,firstCalls}=aggData;
+  const {funnel,callers,cohorts,ixers,modes,byDatePoc,secondCalls,firstCalls,notAttempted}=aggData;
 
-  renderFunnel(funnel,secondCalls,firstCalls);
+  renderFunnel(funnel,secondCalls,firstCalls,aggData.notAttempted||0);
   renderKPIs(funnel);
   renderCallerTable(callers);
   renderCallerCohort(callers,cohorts);
@@ -1082,6 +1219,23 @@ async function loadAll(){
 
     if(!ALL.length)throw new Error('No records found. Check sheet sharing settings.');
 
+    // ── Build SCHEDULED_IDS: all customer IDs that appear in the Interviews Scheduled sheet ──
+    SCHEDULED_IDS=new Set(
+      SCHED.map(r=>(r['Customer ID']||'').toString().trim()).filter(Boolean)
+    );
+
+    // ── Cross-reference: if a customer is in Interviews Scheduled with status Complete/Done,
+    //    mark their call records as iview='Yes' — no need to update the data sheet separately ──
+    const completedIds=new Set(
+      SCHED
+        .filter(r=>{ const s=(r['Status']||'').toLowerCase(); return s.includes('complet')||s.includes('done'); })
+        .map(r=>(r['Customer ID']||'').toString().trim())
+        .filter(Boolean)
+    );
+    for(const r of ALL){
+      if(completedIds.has(r.cid.toString())) r.iview='Yes';
+    }
+
     // Populate caller filter buttons
     const callers=[...new Set(ALL.map(r=>r.poc).filter(Boolean))].sort();
     renderCallerBtns(Object.fromEntries(callers.map(c=>[c,{}])));
@@ -1094,14 +1248,14 @@ async function loadAll(){
     FILTERED=ALL;
     renderSchedule();
     aggData=agg(ALL);
-    const{funnel,callers:cal,cohorts,ixers,modes,byDatePoc,secondCalls,firstCalls}=aggData;
-    renderFunnel(funnel,secondCalls,firstCalls);
+    const{funnel,callers:cal,cohorts,ixers,modes,byDatePoc,secondCalls,firstCalls,notAttempted}=aggData;
+    renderFunnel(funnel,secondCalls,firstCalls,aggData.notAttempted||0);
     renderKPIs(funnel);
     renderCallerTable(cal);
     renderCallerCohort(cal,cohorts);
     renderCohortCharts(cohorts);
     renderTimeline(byDatePoc);
-    renderTargets(ixers);
+    renderTargets();
     renderIxCharts(ixers,modes);
     renderLog(FILTERED);
     document.getElementById('cohortSection').style.display='';
@@ -1109,6 +1263,14 @@ async function loadAll(){
 
     document.getElementById('overlay').style.display='none';
     document.getElementById('mainPage').style.display='block';
+
+    // ── Auto-refresh every 15 minutes so the team always sees fresh data ──
+    clearInterval(window._autoRefresh);
+    window._autoRefresh=setInterval(()=>{
+      console.log('[Dashboard] Auto-refreshing…');
+      loadAll();
+    }, 15*60*1000);
+
   }catch(e){
     document.getElementById('overlay').style.display='none';
     document.getElementById('errbox').style.display='block';
