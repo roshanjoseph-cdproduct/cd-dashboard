@@ -158,6 +158,7 @@ tbody tr:hover{background:#f8fafc}
   <div class="hdr-r">
     <span class="chip" id="chipDate">⏳ Loading…</span>
     <span class="chip" id="chipCount">—</span>
+    <span class="chip" id="chipSheets" style="cursor:pointer" title="" onclick="toggleSheetStatus()">—</span>
     <button class="btn-refresh" onclick="loadAll()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>
       Refresh
@@ -228,9 +229,17 @@ tbody tr:hover{background:#f8fafc}
   <!-- Daily timeline -->
   <div class="card" style="margin-bottom:14px">
     <div class="card-title">Daily Call Volume</div>
-    <div class="card-sub">Calls attempted per day — use the toggle to isolate a caller</div>
+    <div class="card-sub">Per day, broken down by caller — switch metric to view attempted, connected or interested counts</div>
     <div class="daily-controls">
-      <span>Show:</span>
+      <span>Metric:</span>
+      <div class="caller-btns" id="timelineMetricBtns">
+        <button class="caller-btn all active" onclick="setMetric('attempted')">Attempted</button>
+        <button class="caller-btn"            onclick="setMetric('connected')">Connected</button>
+        <button class="caller-btn"            onclick="setMetric('interested')">Interested</button>
+      </div>
+    </div>
+    <div class="daily-controls">
+      <span>Caller:</span>
       <div class="caller-btns" id="timelineCallerBtns"></div>
     </div>
     <canvas id="timelineChart" height="130"></canvas>
@@ -482,7 +491,7 @@ function getWeekCompletions(weekStart,weekEnd){
 // ══════════════════════════════════════════════════════
 // STATE
 // ══════════════════════════════════════════════════════
-let ALL=[], SCHED=[], FILTERED=[], CHARTS={}, ACTIVE_CALLER='all', TIMELINE_CALLER='all';
+let ALL=[], SCHED=[], FILTERED=[], CHARTS={}, ACTIVE_CALLER='all', TIMELINE_CALLER='all', TIMELINE_METRIC='attempted';
 
 // ══════════════════════════════════════════════════════
 // UTILITIES
@@ -548,7 +557,12 @@ function fetchSheetGViz(sheetName){
       }catch(e){reject(e);}
     };
     script.onerror=()=>{cleanup();reject(new Error('Load failed: '+sheetName));};
-    script.src=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json;responseHandler:${cb}&sheet=${encodeURIComponent(sheetName)}`;
+    // Encode sheet name carefully — encodeURIComponent handles +→%2B, but some GViz
+    // proxy layers re-decode %2B as space before matching. Using a tq query with
+    // explicit sheet index would be safer, but we don't have GIDs. As a belt-and-
+    // suspenders measure we also try the label lookup via &tq=select * approach.
+    const encSheet=encodeURIComponent(sheetName);
+    script.src=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json;responseHandler:${cb}&sheet=${encSheet}`;
     document.head.appendChild(script);
   });
 }
@@ -559,8 +573,9 @@ function yn(v){ const s=(v||'').trim().toLowerCase(); return s==='yes'||s==='y'?
 function pd(v){
   if(!v)return null; const s=String(v).trim();
   if(!s||s.startsWith('='))return null;
-  // Already ISO YYYY-MM-DD
-  if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+  // Already ISO YYYY-MM-DD (with or without trailing time/text — e.g. "2026-05-01 11:30 AM")
+  const iso=s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T].*)?$/);
+  if(iso)return`${iso[1]}-${iso[2]}-${iso[3]}`;
   // GViz formatted date: M/D/YYYY
   const mdy=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if(mdy)return`${mdy[3]}-${mdy[1].padStart(2,'0')}-${mdy[2].padStart(2,'0')}`;
@@ -601,6 +616,14 @@ function inCurrentWeek(dateStr){
 
 // Normalise a header string for comparison: lowercase, trim, collapse whitespace
 const norm = s => (s||'').toLowerCase().trim().replace(/\s+/g,' ');
+
+// Show sheet-by-sheet load report when user clicks the status chip
+function toggleSheetStatus(){
+  const log=window._sheetLoadLog||[];
+  if(!log.length){alert('No sheet load data yet — open the dashboard and let it load first.');return;}
+  const lines=log.map(s=>`${s.ok&&s.count>0?'✅':'❌'} ${s.cohort} — ${s.count} records\n    (tab: "${s.name}")${s.err?' ⚠ '+s.err:''}`);
+  alert('Sheet Load Report\n\n'+lines.join('\n\n'));
+}
 
 function processSheet(rows, cfg){
   if(rows.length<2)return[];
@@ -650,14 +673,18 @@ function processSheet(rows, cfg){
     const cid=g(row,custIdx)||`r${i}`;
     const poc1=g(row,pocIdx), date1=pd(g(row,dateIdx));
     if(poc1&&date1){
-      const conn1=yn(g(row,connIdx));
+      // Raw connected cell: any non-empty value (Yes / No / RNR / Switched off /
+      // Busy / Not Reachable / Wrong Number / etc.) means the call WAS attempted.
+      // Only a truly blank cell means "not yet dialled".
+      const conn1Raw=connIdx>=0?g(row,connIdx):'';
+      const conn1=yn(conn1Raw);            // 'Yes' / 'No' / null — used for connect-rate metrics
       records.push({
         cid, cohort:cfg.cohort,
         city:     cityIdx>=0?g(row,cityIdx):'',
         name:     nameIdx>=0?g(row,nameIdx):'',
         calling_date:date1, poc:poc1, attempt:1,
         conn:     conn1,
-        attempted:conn1!==null,           // blank connected = not yet dialled
+        attempted:conn1Raw!=='',           // blank connected = not yet dialled
         int:      intIdx>=0?yn(g(row,intIdx)):null,
         iview:    iviewIdx>=0?yn(g(row,iviewIdx)):null,
         insg:     insgIdx>=0?yn(g(row,insgIdx)):null,
@@ -669,14 +696,15 @@ function processSheet(rows, cfg){
     if(poc2Idx>=0){
       const poc2=g(row,poc2Idx), date2=pd(g(row,date2Idx));
       if(poc2&&date2){
-        const conn2=conn2Idx>=0?yn(g(row,conn2Idx)):null;
+        const conn2Raw=conn2Idx>=0?g(row,conn2Idx):'';
+        const conn2=yn(conn2Raw);
         records.push({
           cid, cohort:cfg.cohort,
           city:     cityIdx>=0?g(row,cityIdx):'',
           name:     nameIdx>=0?g(row,nameIdx):'',
           calling_date:date2, poc:poc2, attempt:2,
           conn:     conn2,
-          attempted:conn2!==null,
+          attempted:conn2Raw!=='',         // blank connected = not yet dialled
           int:      int2Idx>=0?yn(g(row,int2Idx)):null,
           iview:null, insg:null, taken_by:'', mode:'', report:'',
         });
@@ -735,7 +763,7 @@ function agg(records){
   };
 
   // ── CALLER STATS (call-level, only attempted calls) ──
-  const callers={}, cohorts={}, ixers={}, modes={}, byDatePoc={};
+  const callers={}, cohorts={}, ixers={}, modes={}, byDatePoc={}, byDatePocConn={}, byDatePocInt={};
   for(const r of records){
     const poc=r.poc||'Unknown';
     if(!callers[poc])callers[poc]={first:0,second:0,conn:0,int:0,iview:0,insg:0,notAttempted:0};
@@ -770,10 +798,12 @@ function agg(records){
       }
     }
 
-    // ── TIMELINE (only attempted calls) ──
+    // ── TIMELINE (per date + caller: attempted, connected, interested) ──
     if(r.calling_date && r.attempted){
       const key=r.calling_date+'|'+poc;
       byDatePoc[key]=(byDatePoc[key]||0)+1;
+      if(r.conn==='Yes') byDatePocConn[key]=(byDatePocConn[key]||0)+1;
+      if(r.int==='Yes')  byDatePocInt[key]=(byDatePocInt[key]||0)+1;
     }
   }
 
@@ -791,7 +821,7 @@ function agg(records){
   const firstCalls  = records.filter(r=>r.attempt===1&&r.attempted).length;
   const notAttempted= records.filter(r=>r.attempt===1&&!r.attempted).length;
 
-  return{funnel,callers,cohorts,ixers,modes,byDatePoc,secondCalls,firstCalls,notAttempted,total:records.length};
+  return{funnel,callers,cohorts,ixers,modes,byDatePoc,byDatePocConn,byDatePocInt,secondCalls,firstCalls,notAttempted,total:records.length};
 }
 
 // ══════════════════════════════════════════════════════
@@ -931,7 +961,7 @@ function renderKPIs(f){
     <div class="kpi a"><div class="kpi-lbl">Interested</div><div class="kpi-val">${f.interested}</div><div class="kpi-rate">${pct(f.interested,f.connected)} of connected</div></div>
     <div class="kpi p"><div class="kpi-lbl">Interviews</div><div class="kpi-val">${f.interviewed}</div><div class="kpi-rate">${pct(f.interviewed,f.interested)} of interested</div></div>
     <div class="kpi t"><div class="kpi-lbl">Insightful</div><div class="kpi-val">${f.insightful}</div><div class="kpi-rate">${pct(f.insightful,f.interviewed)} insight rate</div></div>
-    <div class="kpi r"><div class="kpi-lbl">Interested, Not Scheduled</div><div class="kpi-val">${f.pipelineGap||0}</div><div class="kpi-sub" style="font-size:10px">Interested but not yet in interview schedule</div></div>
+    ${SCHED.length>0?`<div class="kpi r"><div class="kpi-lbl">Interested, Not Scheduled</div><div class="kpi-val">${f.pipelineGap||0}</div><div class="kpi-sub" style="font-size:10px">Interested but not yet in the schedule sheet</div></div>`:''}
   `;
 }
 
@@ -947,13 +977,26 @@ function renderCallerBtns(callers){
     names.map(n=>`<button class="caller-btn ${TIMELINE_CALLER===n?'active':''}" onclick="setCaller('${n}','timelineCallerBtns')">${n}</button>`).join('');
 }
 
+function setMetric(metric){
+  TIMELINE_METRIC=metric;
+  // Update active class on metric toggle buttons
+  document.querySelectorAll('#timelineMetricBtns .caller-btn').forEach(b=>{
+    const isActive=b.textContent.toLowerCase().trim()===metric.toLowerCase();
+    b.classList.toggle('active',isActive);
+    b.classList.toggle('all',isActive); // visual highlight (matches "all" button styling)
+  });
+  if(aggData&&aggData.byDatePoc){
+    renderTimeline(aggData.byDatePoc,aggData.byDatePocConn,aggData.byDatePocInt);
+  }
+}
+
 function setCaller(name,groupId){
   if(groupId==='timelineCallerBtns'){
     TIMELINE_CALLER=name;
     document.querySelectorAll('#timelineCallerBtns .caller-btn').forEach(b=>{
       b.classList.toggle('active',(name==='all'&&b.classList.contains('all'))||b.textContent===name);
     });
-    renderTimeline(aggData.byDatePoc);
+    renderTimeline(aggData.byDatePoc,aggData.byDatePocConn,aggData.byDatePocInt);
   } else {
     ACTIVE_CALLER=name;
     document.querySelectorAll('#callerBtns .caller-btn').forEach(b=>{
@@ -1105,18 +1148,81 @@ function renderIxCharts(ixers,modes){
   }).join('');
 }
 
-function renderTimeline(byDatePoc){
+function renderTimeline(byDatePoc,byDatePocConn,byDatePocInt){
   dc('timelineChart');
-  const dates=[...new Set(Object.keys(byDatePoc).map(k=>k.split('|')[0]))].sort();
-  const allPocs=[...new Set(Object.keys(byDatePoc).map(k=>k.split('|')[1]))].sort();
+  byDatePocConn=byDatePocConn||{};
+  byDatePocInt =byDatePocInt ||{};
+
+  // Pick the map to render based on the metric toggle.
+  // Default is "attempted". Other dashboards (filter-side maps) are kept
+  // in scope so we can show a Day-total tooltip footer with all three values.
+  const metricMap = {
+    attempted:  {map:byDatePoc,     label:'Calls Attempted'},
+    connected:  {map:byDatePocConn, label:'Calls Connected'},
+    interested: {map:byDatePocInt,  label:'Customers Interested'},
+  };
+  const sel = metricMap[TIMELINE_METRIC] || metricMap.attempted;
+
+  // Use the union of keys from all three maps so the X-axis stays stable
+  // when you switch metric (otherwise dates with e.g. zero connections would
+  // disappear from the chart).
+  const allKeys=[...new Set([
+    ...Object.keys(byDatePoc),
+    ...Object.keys(byDatePocConn),
+    ...Object.keys(byDatePocInt)
+  ])];
+  const dates=[...new Set(allKeys.map(k=>k.split('|')[0]))].sort();
+  const allPocs=[...new Set(allKeys.map(k=>k.split('|')[1]))].sort();
   const pocs=TIMELINE_CALLER==='all'?allPocs:[TIMELINE_CALLER];
+
+  // One stacked bar per day; each segment is one caller's count for the
+  // currently-selected metric. This is the same structure as the original
+  // Daily Call Volume chart — just driven by which metric is selected.
   const datasets=pocs.map((p,i)=>({
-    label:p,data:dates.map(d=>byDatePoc[`${d}|${p}`]||0),
-    backgroundColor:PAL[i%PAL.length]+'cc',borderColor:PAL[i%PAL.length],borderWidth:1,stack:'s'
+    label:p,
+    data:dates.map(d=>sel.map[`${d}|${p}`]||0),
+    backgroundColor:PAL[i%PAL.length]+'cc',
+    borderColor:PAL[i%PAL.length],
+    borderWidth:1,
+    stack:'s',
   }));
+
   CHARTS.timelineChart=new Chart(document.getElementById('timelineChart'),{
-    type:'bar',data:{labels:dates.map(d=>d.slice(5)),datasets},
-    options:{responsive:true,scales:{x:{stacked:true,ticks:{font:{size:10},maxRotation:45}},y:{stacked:true,ticks:{font:{size:10}}}},plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}}}}
+    type:'bar',
+    data:{labels:dates.map(d=>d.slice(5)),datasets},
+    options:{
+      responsive:true,
+      scales:{
+        x:{stacked:true,ticks:{font:{size:10},maxRotation:45}},
+        y:{stacked:true,beginAtZero:true,ticks:{font:{size:10}}}
+      },
+      plugins:{
+        title:{
+          display:true,
+          text:sel.label+' — per day, broken down by caller',
+          font:{size:12,weight:'600'},
+          color:'#475569',
+          padding:{bottom:8}
+        },
+        legend:{position:'top',labels:{font:{size:10},boxWidth:10}},
+        tooltip:{
+          callbacks:{
+            // Footer shows the day's totals across ALL three metrics so the
+            // user can see the funnel context even while viewing one metric.
+            footer:(items)=>{
+              if(!items.length)return'';
+              const idx=items[0].dataIndex;
+              const d=dates[idx];
+              const sumOver=(map)=>pocs.reduce((s,p)=>s+(map[`${d}|${p}`]||0),0);
+              const a=sumOver(byDatePoc), c=sumOver(byDatePocConn), i=sumOver(byDatePocInt);
+              const cr=a?Math.round(c/a*100):0;
+              const ir=c?Math.round(i/c*100):0;
+              return`Day total: ${a} attempted → ${c} connected (${cr}%) → ${i} interested (${ir}%)`;
+            }
+          }
+        }
+      }
+    }
   });
 }
 
@@ -1152,9 +1258,11 @@ function applyLogFilter(allInterviewed){
   }
   document.getElementById('logTbody').innerHTML=rows.map(r=>{
     const link=r.report?`<a class="link-btn" href="${r.report}" target="_blank">📄 Open</a>`:`<span style="color:var(--muted);font-size:10px">Link pending</span>`;
-    const cname=r.name?r.name:(r.cid||'—');
+    // Show Customer ID as primary identifier — the "name" column in source sheets
+    // is unreliable (some sheets store city names or numeric IDs there)
+    const cid=r.cid||'—';
     return `<tr>
-      <td><strong>${cname}</strong>${r.cid&&r.name?`<br><span style="color:var(--muted);font-size:10px">#${r.cid}</span>`:''}</td>
+      <td><strong>Customer ${cid}</strong><br><span style="color:var(--muted);font-size:10px">${r.city||''}</span></td>
       <td><span class="bdg bdg-gray">${r.cohort}</span></td>
       <td>${r.calling_date||'—'}</td>
       <td>${r.taken_by||'—'}</td>
@@ -1177,13 +1285,17 @@ function applyFilter(){
     (ACTIVE_CALLER==='all'||r.poc===ACTIVE_CALLER)
   );
   aggData=agg(FILTERED);
-  const {funnel,callers,cohorts,ixers,modes,byDatePoc,secondCalls,firstCalls,notAttempted}=aggData;
+  const {funnel,callers,cohorts,ixers,modes,byDatePoc,byDatePocConn,byDatePocInt,secondCalls,firstCalls,notAttempted}=aggData;
+
+  // Reset log filters whenever the top cohort/caller filter changes
+  document.getElementById('logCohort').value='all';
+  document.getElementById('logInterviewer').value='all';
 
   renderFunnel(funnel,secondCalls,firstCalls,aggData.notAttempted||0);
   renderKPIs(funnel);
   renderCallerTable(callers);
   renderCallerCohort(callers,cohorts);
-  renderTimeline(byDatePoc);
+  renderTimeline(byDatePoc,byDatePocConn,byDatePocInt);
   renderTargets();
   renderIxCharts(ixers,modes);
   renderLog(FILTERED);
@@ -1203,16 +1315,26 @@ async function loadAll(){
   document.getElementById('errbox').style.display='none';
   document.getElementById('mainPage').style.display='none';
   try{
-    const[sheetResults,schedResult]=await Promise.all([
-      Promise.all(CFGS.map(cfg=>
-        fetchSheetGViz(cfg.sheetName)
-          .then(rows=>processSheet(rows,cfg))
-          .catch(e=>{console.warn(cfg.sheetName,e);return[];})
-      )),
-      fetchSheetGViz(SCHED_SHEET)
-        .then(rows=>processSched(rows))
-        .catch(()=>[])
-    ]);
+    // Fetch each sheet individually so we can track which ones loaded vs failed
+    const sheetLoadLog=[];
+    const sheetResults=await Promise.all(CFGS.map(async cfg=>{
+      try{
+        const rows=await fetchSheetGViz(cfg.sheetName);
+        const records=processSheet(rows,cfg);
+        sheetLoadLog.push({name:cfg.sheetName,cohort:cfg.cohort,count:records.length,ok:true});
+        return records;
+      }catch(e){
+        console.warn(`[Dashboard] Failed to load "${cfg.sheetName}":`,e.message);
+        sheetLoadLog.push({name:cfg.sheetName,cohort:cfg.cohort,count:0,ok:false,err:e.message});
+        return[];
+      }
+    }));
+    const schedResult=await fetchSheetGViz(SCHED_SHEET)
+      .then(rows=>processSched(rows))
+      .catch(()=>[]);
+
+    // Store log globally so the status chip can display it
+    window._sheetLoadLog=sheetLoadLog;
 
     ALL=sheetResults.flat();
     SCHED=schedResult;
@@ -1243,18 +1365,34 @@ async function loadAll(){
     document.getElementById('chipDate').textContent='🕐 '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
     document.getElementById('chipCount').textContent=`📊 ${ALL.length.toLocaleString()} call records · ${SCHED.length} scheduled`;
 
+    // Sheet load status chip
+    const failed=sheetLoadLog.filter(s=>!s.ok||s.count===0);
+    const chipSheets=document.getElementById('chipSheets');
+    const tooltip=sheetLoadLog.map(s=>`${s.ok&&s.count>0?'✅':'❌'} ${s.cohort}: ${s.count} records`).join('\n');
+    chipSheets.setAttribute('title',tooltip);
+    if(failed.length>0){
+      chipSheets.textContent=`⚠️ ${failed.length} sheet(s) empty/failed`;
+      chipSheets.style.background='rgba(239,68,68,.35)';
+      chipSheets.style.color='#fff';
+      console.warn('[Dashboard] Sheet load issues:',failed);
+    } else {
+      chipSheets.textContent=`✅ ${CFGS.length} sheets loaded`;
+      chipSheets.style.background='rgba(255,255,255,.15)';
+      chipSheets.style.color='#fff';
+    }
+
     document.getElementById('fCohort').value='all';
     ACTIVE_CALLER='all'; TIMELINE_CALLER='all';
     FILTERED=ALL;
     renderSchedule();
     aggData=agg(ALL);
-    const{funnel,callers:cal,cohorts,ixers,modes,byDatePoc,secondCalls,firstCalls,notAttempted}=aggData;
+    const{funnel,callers:cal,cohorts,ixers,modes,byDatePoc,byDatePocConn,byDatePocInt,secondCalls,firstCalls,notAttempted}=aggData;
     renderFunnel(funnel,secondCalls,firstCalls,aggData.notAttempted||0);
     renderKPIs(funnel);
     renderCallerTable(cal);
     renderCallerCohort(cal,cohorts);
     renderCohortCharts(cohorts);
-    renderTimeline(byDatePoc);
+    renderTimeline(byDatePoc,byDatePocConn,byDatePocInt);
     renderTargets();
     renderIxCharts(ixers,modes);
     renderLog(FILTERED);
