@@ -171,9 +171,9 @@ tbody tr:hover{background:#f8fafc}
   <select id="fCohort" onchange="applyFilter()">
     <option value="all">All Cohorts</option>
     <option value="Early Users - No CS">Early Users – No CS</option>
-    <option value="Elite Users - 1K-2K (Taneesha)">Elite Users 1K-2K · Taneesha</option>
-    <option value="Elite Users - 2K-10K">Elite Users 2K-10K</option>
-    <option value="Elite Users - 10K+ (Sannidhi)">Elite Users 10K+ · Sannidhi</option>
+    <option value="Elite Users CS 1-2000 - For Taneesha">Elite Users CS 1-2000 - For Taneesha</option>
+    <option value="Elite Users CS 2000-10000">Elite Users CS 2000-10000</option>
+    <option value="Elite Users CS 10000+ - For Sannidhi">Elite Users CS 10000+ - For Sannidhi</option>
     <option value="Dropped Off - Hyd">Dropped Off – Hyd</option>
     <option value="Review Cart → Not Placing Order">Review Cart → Not Placing</option>
     <option value="Placing Order → Not Taking OT">Placing Order → Not Taking OT</option>
@@ -368,7 +368,7 @@ const CFGS = [
       report:'report & transcript link',
     }},
 
-  { sheetName:'Elite Users CS 1-2000 - For Taneesha', cohort:'Elite Users - 1K-2K (Taneesha)',
+  { sheetName:'Elite Users CS 1-2000 - For Taneesha', cohort:'Elite Users CS 1-2000 - For Taneesha',
     cols:{
       custId:'customer id', name:'customer', city:'city',
       poc:['poc name',0], date:'calling date',
@@ -379,7 +379,7 @@ const CFGS = [
       takenBy:'interview taken by', mode:'mode of interview',
     }},
 
-  { sheetName:'Elite Users CS 2000-10000', cohort:'Elite Users - 2K-10K',
+  { sheetName:'Elite Users CS 2000-10000', cohort:'Elite Users CS 2000-10000',
     cols:{
       custId:'customer id', name:'customer', city:'city',
       poc:['poc name',0], date:'calling date',
@@ -390,7 +390,7 @@ const CFGS = [
       takenBy:'interview taken by', mode:'mode of interview',
     }},
 
-  { sheetName:'Elite Users CS 10000+ - For Sannidhi', cohort:'Elite Users - 10K+ (Sannidhi)',
+  { sheetName:'Elite Users CS 10000+ - For Sannidhi', cohort:'Elite Users CS 10000+ - For Sannidhi',
     cols:{
       custId:'customer id', name:'customer', city:'city',
       poc:['poc name',0], date:'calling date',
@@ -442,12 +442,27 @@ const TARGETS = {
   ip: { Roshan:2, Anant:2, Neha:2, Rudra:2, Varalakshmi:3, Deepika:3, Sannidhi:2, Taneesha:2 },
   vt: { Roshan:0, Anant:0, Neha:0, Rudra:0, Varalakshmi:10, Deepika:10, Sannidhi:4, Taneesha:4 },
 };
+// Per-week target overrides (effective from a given Monday onwards).
+// Earlier weeks keep the historical target above; weeks starting on or after
+// the `from` date use these. Add new objects here whenever targets change.
+const TARGET_OVERRIDES = [
+  { from:'2026-05-04', changes:{ Neha:{ ip:5, vt:10 } } },  // Neha's targets bumped from week of May 4
+];
+function effectiveTarget(name, type, weekStart){
+  let v=(TARGETS[type]||{})[name]||0;
+  for(const ov of TARGET_OVERRIDES){
+    if(weekStart>=ov.from && ov.changes[name] && ov.changes[name][type]!==undefined){
+      v=ov.changes[name][type];
+    }
+  }
+  return v;
+}
 const PAL = ['#1d4ed8','#15803d','#b45309','#7c3aed','#0f766e','#b91c1c','#0369a1','#065f46'];
 
 // Cohort → intern ownership (used for badges and filter labels)
 const COHORT_OWNERS = {
-  'Elite Users - 1K-2K (Taneesha)': { owner:'Taneesha', color:'#7c3aed', bg:'#ede9fe' },
-  'Elite Users - 10K+ (Sannidhi)':  { owner:'Sannidhi',  color:'#0f766e', bg:'#ccfbf1' },
+  'Elite Users CS 1-2000 - For Taneesha': { owner:'Taneesha', color:'#7c3aed', bg:'#ede9fe' },
+  'Elite Users CS 10000+ - For Sannidhi': { owner:'Sannidhi', color:'#0f766e', bg:'#ccfbf1' },
 };
 
 // Populated after SCHED loads — customer IDs that appear in Interviews Scheduled sheet
@@ -890,16 +905,16 @@ function fmtSchedDate(raw){
 }
 
 function renderSchedule(){
+  // Show ONLY today's interviews. Past-dated rows in the sheet (back-fills,
+  // historical entries) are intentionally excluded — the schedule section is
+  // a "what's happening today" view, not an interview log.
   const td=today();
-  const todayRows=SCHED.filter(r=>parseSchedDate(r['Interview Date']||'')===td);
-  const rows=todayRows.length?todayRows:SCHED;
-  const lbl=todayRows.length
-    ?todayRows.length+' interview(s) today'
-    :'Showing all scheduled (none today)';
-  document.getElementById('todayLabel').textContent=lbl;
+  const rows=SCHED.filter(r=>parseSchedDate(r['Interview Date']||'')===td);
+  document.getElementById('todayLabel').textContent=
+    rows.length?rows.length+' interview(s) today':'No interviews scheduled for today';
 
   if(!rows.length){
-    document.getElementById('scheduleTbody').innerHTML=`<tr><td colspan="14" class="placeholder-row">No interviews scheduled yet</td></tr>`;
+    document.getElementById('scheduleTbody').innerHTML=`<tr><td colspan="14" class="placeholder-row">No interviews scheduled for today</td></tr>`;
     return;
   }
   document.getElementById('scheduleTbody').innerHTML=rows.map(r=>{
@@ -1099,7 +1114,7 @@ function renderTargets(){
   const comp=getWeekCompletions(wi.start,wi.end);
   const allNames=[...new Set([...Object.keys(TARGETS.ip),...Object.keys(TARGETS.vt)])].sort();
   document.getElementById('targetGrid').innerHTML=allNames.map(name=>{
-    const ipT=TARGETS.ip[name]||0, vtT=TARGETS.vt[name]||0;
+    const ipT=effectiveTarget(name,'ip',wi.start), vtT=effectiveTarget(name,'vt',wi.start);
     const ipW=(comp[name]||{}).ip||0, vtW=(comp[name]||{}).vt||0;
     const ipPct=ipT>0?Math.min(100,(ipW/ipT)*100):0;
     const vtPct=vtT>0?Math.min(100,(vtW/vtT)*100):0;
@@ -1135,7 +1150,10 @@ function renderIxCharts(ixers,modes){
   });
 
   document.getElementById('ixTbody').innerHTML=Object.keys(ixers).sort((a,b)=>ixers[b].total-ixers[a].total).map(name=>{
-    const r=ixers[name], ipT=TARGETS.ip[name]||0, vtT=TARGETS.vt[name]||0;
+    // Interviewer table uses the CURRENT week's effective target (this is the
+    // weekly progress section, so we want the live target, not historical).
+    const _ws=weekInfo().start;
+    const r=ixers[name], ipT=effectiveTarget(name,'ip',_ws), vtT=effectiveTarget(name,'vt',_ws);
     const insgRate=pct(r.insg,r.total);
     return `<tr>
       <td><strong>${name}</strong></td>
